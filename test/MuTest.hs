@@ -38,12 +38,19 @@ typeCheckTest = testGroup "typeCheck" [
 
 typeCheckMuTest = testGroup "typeCheck mu" [
   testCase "μα. [α](λx. x) : ?0 -> ?0" $
-    typeCheck (Mu (CtrlId "a") $ Name (CtrlId "a") $ Lambda (VarId "x") $ var "x")
-    @?= Right (hole 0 ~> hole 0),
-  testCase "λf. μα. f (λx. [α]x) : ((?0 -> _|_) -> _|_) -> ?0" $
-    typeCheck (Lambda (VarId "f") $ Mu (CtrlId "a") $ App (var "f") (Lambda (VarId "x") $ Name (CtrlId "a") $ var "x"))
-    @?= Right (((hole 0 ~> Bottom) ~> Bottom) ~> hole 0)
+    typeCheck (mu "a" $ name "a" $ lam "x" $ var "x") @?= Right (hole 0 ~> hole 0),
+  testCase "callCC := λf. μα. f (λx. [α]x) : ((?0 -> _|_) -> _|_) -> ?0" $
+    typeCheck callCC @?= Right (((hole 0 ~> Bottom) ~> Bottom) ~> hole 0),
+  testCase "λa f. callCC (λg. f a) : ?0 -> (?0 -> ?1 -> _|_) -> ?1" $
+    typeCheck (lam "a2" $ lam "f2" $ callCC <#> (lam "g" $ var "f2" <#> var "a2"))
+    @?= Right (hole 0 ~> (hole 0 ~> hole 1 ~> Bottom) ~> hole 1)
   ]
+  where
+    -- callCC : ((A -> _|_) -> _|_) -> A
+    callCC = lam "f" $ mu "a" $ var "f" <#> (lam "x" $ name "a" $ var "x")
+
+    -- A \/ B == (A -> _|_) -> B
+    -- ???
 
 muTests = [
   showTypTest,

@@ -30,6 +30,19 @@ data Expr =
 var :: String -> Expr
 var = Var . VarId
 
+lam :: String -> Expr -> Expr
+lam v = Lambda (VarId v)
+
+infixl 2 <#>
+(<#>) :: Expr -> Expr -> Expr
+(<#>) e1 e2 = App e1 e2
+
+name :: String -> Expr -> Expr
+name v = Name (CtrlId v)
+
+mu :: String -> Expr -> Expr
+mu v = Mu (CtrlId v)
+
 instance Show Expr where
   show (Var v) = show v
   show (Lambda v expr) = "λ" ++ show v ++ ". " ++ show expr
