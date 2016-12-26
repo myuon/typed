@@ -244,11 +244,34 @@ normalize = go where
   go (App (Mu alpha u) v) = go $ Mu alpha $ substC u alpha v
   go (Var x) = Var x
   go (Lambda var m) = Lambda var $ go m
-  go (App t1 t2) = App (go t1) (go t2)
+  go (App t1 t2) =
+    let t1' = go t1; t2' = go t2 in
+      (if t1 == t1' && t2 == t2' then id else go) $ App t1' t2'
   go (Name alpha m) = Name alpha $ go m
-  go (Mu alpha m) = Mu alpha $ go m
+  go (Mu alpha (Name beta m)) | alpha == beta = go m
+  go (Mu alpha m) = let m' = go m in (if m == m' then id else go) $ Mu alpha m'
 
 run = do
-  let expr = (Lambda (VarId "f") $ Mu (CtrlId "a") $ App (var "f") (Lambda (VarId "x") $ Name (CtrlId "a") $ var "x"))
-  print $ typeCheck expr
-  print $ runState (typing expr) defEnv
+  let andT a b = (a ~> b ~> Bottom) ~> Bottom
+  let proj1 = lam "ab" $ mu "alpha" $ var "ab" <#> (lam "a" $ lam "b" $ name "alpha" $ var "a")
+  print $ typeCheck proj1
+
+  let mkPair = lam "a" $ lam "b" $ lam "f" $ var "f" <#> var "a" <#> var "b"
+  print $ typeCheck mkPair
+
+  print $ normalize $ lam "M" $ lam "N" $ proj1 <#> (mkPair <#> var "M" <#> var "N")
+  -- lam M. lam N. M
+
+  let orT a b = (a ~> Bottom) ~> (b ~> Bottom) ~> Bottom
+  let inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
+  print $ typeCheck inj1
+
+  let callCC = lam "k" $ mu "a" $ var "k" <#> (lam "x" $ name "a" $ var "x")
+  print $ typeCheck callCC
+
+  let ite = lam "ab" $ lam "AC" $ lam "BC" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "AC" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "BC" <#> var "b")))
+  print $ typeCheck ite
+
+  print $ normalize $ lam "M" $ lam "f" $ lam "g" $ ite <#> (inj1 <#> var "M") <#> var "f" <#> var "g"
+
+  
