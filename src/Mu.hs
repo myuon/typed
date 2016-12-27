@@ -124,8 +124,13 @@ typing (Lambda var expr) = do
   vmap <- use vctx
   return $ (\m -> (vmap M.! var) ~> m) <$> mtyp
 typing (App expr1 expr2) = do
+  env <- get
   typ1 <- typing expr1
+  vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
+  cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
   typ2 <- typing expr2
+  vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
+  cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
   case (typ1, typ2) of
     (Left e1, Left e2) -> return $ Left $ e1 ++ "\n" ++ e2
     (Left e, _) -> return $ Left e
