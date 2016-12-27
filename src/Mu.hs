@@ -136,18 +136,17 @@ typing (App expr1 expr2) = do
     (Left e, _) -> return $ Left e
     (_, Left e) -> return $ Left e
     (Right t1, Right t2) -> do
-      vctx %= M.insert (VarId "?goal") t1
       succeeded <- do
         h <- newHole
         us <- use unifiers
-        unify (S.insert (t1, t2 ~> Hole h) us)
+        unify (t1, t2 ~> Hole h) us
 
       case succeeded of
         Left err -> return $ Left err
-        Right us -> do
+        Right (us, typ) -> do
           unifiers .= us
 
-          use vctx >>= \vmap -> case vmap M.! VarId "?goal" of
+          case typ of
             (Arrow _ v) -> return $ Right v
             t -> return $ Left $ "Type not match: " ++ show t ++ " is not a function type"
 typing (Name name expr) = do
@@ -158,16 +157,14 @@ typing (Name name expr) = do
     Left err -> return $ Left err
     _ | name `M.notMember` cmap -> return $ Left $ "Name not in scope: " ++ show name ++ " in " ++ show cmap
     Right typ -> do
-      -- Appの推論では?goalを付け加えたがここでは
-      -- nameの型は後で使わないので不要
       succeeded <- do
         cmap <- use cctx
         us <- use unifiers
-        unify $ S.insert (typ, cmap M.! name) us
+        unify (typ, cmap M.! name) us
 
       case succeeded of
         Left err -> return $ Left err
-        Right us -> do
+        Right (us,_) -> do
           unifiers .= us
           return $ Right Bottom
 typing (Mu name expr) = do
@@ -184,11 +181,11 @@ typing (Mu name expr) = do
           succeeded <- do
             cmap <- use cctx
             us <- use unifiers
-            unify $ S.insert (typ, Bottom) us
+            unify (typ, Bottom) us
 
           case succeeded of
             Left err -> return $ Left err
-            Right us -> do
+            Right (us,_) -> do
               unifiers .= us
               us' <- use unifiers
               cmap <- use cctx
@@ -200,10 +197,14 @@ holesIn = nub . go where
   go (Arrow t1 t2) = go t1 ++ go t2
   go (Hole v) = [v]
 
-unify :: Unifiers -> State Environment (Either String Unifiers)
-unify us = case S.minView us of
-  Just (this, others) -> go this others
-  Nothing -> return $ Right S.empty
+unify :: (Typ, Typ) -> Unifiers -> State Environment (Either String (Unifiers, Typ))
+unify pq us = do
+  vctx %= M.insert (VarId "?goal") (pq ^. _1)
+  r <- go pq us
+  vmap <- use vctx
+  vctx %= M.delete (VarId "?goal")
+
+  return $ (\us -> (us, vmap M.! VarId "?goal")) <$> r
   where
     subst :: HoleId -> Typ -> Typ -> Typ
     subst v m (Hole w)
@@ -212,17 +213,27 @@ unify us = case S.minView us of
     subst v m (Arrow t1 t2) = Arrow (subst v m t1) (subst v m t2)
     subst v m Bottom = Bottom
 
+    unify' :: Unifiers -> State Environment (Either String Unifiers)
+    unify' us = case S.minView us of
+      Just j -> uncurry go j
+      Nothing -> return $ Right S.empty
+
+    go :: (Typ, Typ) -> Unifiers -> State Environment (Either String Unifiers)
     go this others = case this of
-      (p, q) | p == q -> unify others
-      (Arrow t11 t12, Arrow t21 t22) -> unify $ S.insert (t11,t21) $ S.insert (t21,t22) others
-      (p@(Arrow _ _), Hole v) -> unify $ S.insert (Hole v, p) others
+      (p,q) | p == q -> unify' others
+      (Arrow t11 t12, Arrow t21 t22) -> do
+        r <- go (t11, t21) others
+        case r of
+          Left err -> return $ Left err
+          Right us -> go (t21, t22) us
+      (p@(Arrow _ _), Hole v) -> go (Hole v, p) others
       (Hole v, typ)
         | v `elem` holesIn typ -> return $ Left $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
         | otherwise -> do
           vctx %= fmap (subst v typ)
           cctx %= fmap (subst v typ)
-          es <- unify $ S.map (subst v typ *** subst v typ) others
-          return $ S.insert (Hole v, typ) <$> es
+          es <- unify' $ S.map (subst v typ *** subst v typ) others
+          return $ (S.insert (Hole v, typ)) <$> es
       (p,q) -> return $ Left $ "Unification failed: " ++ show p ++ " & " ++ show q
 
 normalize :: Expr -> Expr
