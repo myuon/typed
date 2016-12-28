@@ -2,7 +2,7 @@ module MuTest (muTests) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Mu
 
 showTypTest = testGroup "show Typ" [

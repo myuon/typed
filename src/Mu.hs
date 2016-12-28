@@ -146,8 +146,8 @@ unshadowing = go where
   go (Name (CtrlId c _) expr) = Name (ctrlId c) expr
   go (Mu (CtrlId c _) expr) = Mu (ctrlId c) (go expr)
 
-typeCheck :: Expr -> Either String Typ
-typeCheck expr = reindex <$> evalState (typing $ shadowing expr) def
+typing :: Expr -> Either String Typ
+typing expr = reindex <$> evalState (typing' $ shadowing expr) def
   where
     reindex t = go t where
       rmap = zip (holesIn t) (fmap hole [0..])
@@ -156,90 +156,103 @@ typeCheck expr = reindex <$> evalState (typing $ shadowing expr) def
       go (Arrow e1 e2) = Arrow (go e1) (go e2)
       go Bottom = Bottom
 
-typing :: Expr -> State Environment (Either String Typ)
-typing (Var var) = do
-  vmap <- use vctx
-  case var `M.member` vmap of
-    True -> return $ Right $ vmap M.! var
-    False -> return $ Left $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap
-typing (Lambda var expr) = do
-  vmap <- use vctx
-  mtyp <- case var `M.member` vmap of
-    True -> return $ Left $ "Variable already used: " ++ show var ++ " in " ++ show vmap
-    False -> do
-      h <- newHole
-      vctx %= M.insert var (Hole h)
-      typing expr
-  vmap <- use vctx
-  return $ (\m -> (vmap M.! var) ~> m) <$> mtyp
-typing (App expr1 expr2) = do
-  env <- get
-  typ1 <- typing expr1
-  vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
-  cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
-  typ2 <- typing expr2
-  vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
-  cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
-  case (typ1, typ2) of
-    (Left e1, Left e2) -> return $ Left $ e1 ++ "\n" ++ e2
-    (Left e, _) -> return $ Left e
-    (_, Left e) -> return $ Left e
-    (Right t1, Right t2) -> do
-      succeeded <- do
-        h <- newHole
-        us <- use unifiers
-        unify (t1, t2 ~> Hole h) us
+    typing' :: Expr -> State Environment (Either String Typ)
+    typing' (Var var) = do
+      vmap <- use vctx
+      case var `M.member` vmap of
+        True -> return $ Right $ vmap M.! var
+        False -> return $ Left $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap
+    typing' (Lambda var expr) = do
+      vmap <- use vctx
+      mtyp <- case var `M.member` vmap of
+        True -> return $ Left $ "Variable already used: " ++ show var ++ " in " ++ show vmap
+        False -> do
+          h <- newHole
+          vctx %= M.insert var (Hole h)
+          typing' expr
+      vmap <- use vctx
+      return $ (\m -> (vmap M.! var) ~> m) <$> mtyp
+    typing' (App expr1 expr2) = do
+      env <- get
+      typ1 <- typing' expr1
+      vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
+      cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
+      typ2 <- typing' expr2
+      vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
+      cctx %= M.filterWithKey (\k _ -> k `M.member` (env^.cctx))
+      case (typ1, typ2) of
+        (Left e1, Left e2) -> return $ Left $ e1 ++ "\n" ++ e2
+        (Left e, _) -> return $ Left e
+        (_, Left e) -> return $ Left e
+        (Right t1, Right t2) -> do
+          succeeded <- do
+            h <- newHole
+            us <- use unifiers
+            unify (t1, t2 ~> Hole h) us
 
-      case succeeded of
-        Left err -> return $ Left err
-        Right (us, typ) -> do
-          unifiers .= us
+          case succeeded of
+            Left err -> return $ Left err
+            Right (us, typ) -> do
+              unifiers .= us
 
-          case typ of
-            (Arrow _ v) -> return $ Right v
-            t -> return $ Left $ "Type not match: " ++ show t ++ " is not a function type"
-typing (Name name expr) = do
-  etyp <- typing expr
-  cmap <- use cctx
-
-  case etyp of
-    Left err -> return $ Left err
-    _ | name `M.notMember` cmap -> return $ Left $ "Name not in scope: " ++ show name ++ " in " ++ show cmap
-    Right typ -> do
-      succeeded <- do
-        cmap <- use cctx
-        us <- use unifiers
-        unify (typ, cmap M.! name) us
-
-      case succeeded of
-        Left err -> return $ Left err
-        Right (us,_) -> do
-          unifiers .= us
-          return $ Right Bottom
-typing (Mu name expr) = do
-  cmap <- use cctx
-  case name `M.member` cmap of
-    True -> return $ Left $ "Name already used: " ++ show name ++ " in " ++ show cmap
-    False -> do
-      h <- newHole
-      cctx %= M.insert name (Hole h)
-      etyp <- typing expr
+              case typ of
+                (Arrow _ v) -> return $ Right v
+                t -> return $ Left $ "Type not match: " ++ show t ++ " is not a function type"
+    typing' (Name name expr) = do
+      etyp <- typing' expr
+      cmap <- use cctx
 
       case etyp of
         Left err -> return $ Left err
+        _ | name `M.notMember` cmap -> return $ Left $ "Name not in scope: " ++ show name ++ " in " ++ show cmap
         Right typ -> do
           succeeded <- do
             cmap <- use cctx
             us <- use unifiers
-            unify (typ, Bottom) us
+            unify (typ, cmap M.! name) us
 
           case succeeded of
             Left err -> return $ Left err
             Right (us,_) -> do
               unifiers .= us
-              us' <- use unifiers
-              cmap <- use cctx
-              return $ Right $ cmap M.! name
+              return $ Right Bottom
+    typing' (Mu name expr) = do
+      cmap <- use cctx
+      case name `M.member` cmap of
+        True -> return $ Left $ "Name already used: " ++ show name ++ " in " ++ show cmap
+        False -> do
+          h <- newHole
+          cctx %= M.insert name (Hole h)
+          etyp <- typing' expr
+
+          case etyp of
+            Left err -> return $ Left err
+            Right typ -> do
+              succeeded <- do
+                cmap <- use cctx
+                us <- use unifiers
+                unify (typ, Bottom) us
+
+              case succeeded of
+                Left err -> return $ Left err
+                Right (us,_) -> do
+                  unifiers .= us
+                  us' <- use unifiers
+                  cmap <- use cctx
+                  return $ Right $ cmap M.! name
+
+typeCheck :: Expr -> Typ -> Either String Typ
+typeCheck expr typ = do
+  let HoleId m = maximum $ holesIn typ
+  typ' <- typing expr
+  snd <$> evalState (unify (typ, hmap (\(HoleId h) -> HoleId (h+m+1)) typ') S.empty) def
+
+  where
+    hmap :: (HoleId -> HoleId) -> Typ -> Typ
+    hmap f = go where
+      go (Hole n) = Hole $ f n
+      go (Arrow e1 e2) = Arrow (go e1) (go e2)
+      go Bottom = Bottom
 
 holesIn :: Typ -> [HoleId]
 holesIn = nub . go where
@@ -271,12 +284,9 @@ unify pq us = do
     go :: (Typ, Typ) -> Unifiers -> State Environment (Either String Unifiers)
     go this others = case this of
       (p,q) | p == q -> unify' others
-      (Arrow t11 t12, Arrow t21 t22) -> do
-        r <- go (t11, t21) others
-        case r of
-          Left err -> return $ Left err
-          Right us -> go (t21, t22) us
+      (Arrow t11 t12, Arrow t21 t22) -> unify' $ S.insert (t11,t21) $ S.insert (t12,t22) others
       (p@(Arrow _ _), Hole v) -> go (Hole v, p) others
+      (Bottom, Hole v) -> go (Hole v, Bottom) others
       (Hole v, Hole v') | v > v' -> go (Hole v', Hole v) others
       (Hole v, typ)
         | v `elem` holesIn typ -> return $ Left $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
@@ -284,7 +294,7 @@ unify pq us = do
           vctx %= fmap (subst v typ)
           cctx %= fmap (subst v typ)
           es <- unify' $ S.map (subst v typ *** subst v typ) others
-          return $ (S.insert (Hole v, typ)) <$> es
+          return $ S.insert (Hole v, typ) <$> es
       (p,q) -> return $ Left $ "Unification failed: " ++ show p ++ " & " ++ show q
 
 normalize :: Expr -> Expr
@@ -319,11 +329,9 @@ normalize = unshadowing . go . shadowing where
 
 run :: IO ()
 run = do
-  print $ normalize (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
-  print $ typeCheck (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
-
-  let callCC = lam "f" $ mu "a" $ var "f" <#> lam "x" (name "a" $ var "x")
-  let ite = lam "ab" $ lam "f" $ lam "g" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "f" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "g" <#> var "b")))
-  print $ normalize $ ite
+  let inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
+  -- ?2 -> (?2 -> ?3) -> ?4 -> ?3
+  -- ?0 -> (?0 -> _|_) -> (?1 -> _|_) -> _|_
+  print $ typeCheck inj1 (hole 0 ~> (hole 0 ~> Bottom) ~> (hole 1 ~> Bottom) ~> Bottom)
 
   return ()
