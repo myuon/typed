@@ -243,7 +243,8 @@ typing expr = reindex <$> evalState (typing' $ shadowing expr) def
 
 typeCheck :: Expr -> Typ -> Either String Typ
 typeCheck expr typ = do
-  let HoleId m = maximum $ holesIn typ
+  let hs = holesIn typ
+  let HoleId m = if null hs then HoleId 0 else maximum hs
   typ' <- typing expr
   snd <$> evalState (unify (typ, hmap (\(HoleId h) -> HoleId (h+m+1)) typ') S.empty) def
 
