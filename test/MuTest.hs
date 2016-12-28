@@ -19,48 +19,55 @@ showExprTest = testGroup "show Expr" [
     show (mu "α" $ name "β" $ lam "y" $ var "y") @?= "μα. [β] λy. y"
   ]
 
-typeCheckTest = testGroup "typeCheck" [
+typingTest = testGroup "typing" [
   testCase "x : Fail" $
-    isLeft (typeCheck (var "x")) @?= True,
+    isLeft (typing (var "x")) @?= True,
   testCase "λx. λy. x y : (?0 -> ?1) -> ?0 -> ?1" $
-    typeCheck (lam "x" $ lam "y" $ var "x" <#> var "y") @?= Right ((hole 0 ~> hole 1) ~> hole 0 ~> hole 1),
+    typing (lam "x" $ lam "y" $ var "x" <#> var "y") @?= Right ((hole 0 ~> hole 1) ~> hole 0 ~> hole 1),
   testCase "λx.x : ?0 -> ?0" $
-    typeCheck (lam "x" $ var "x") @?= Right ((Hole $ HoleId 0) ~> (Hole $ HoleId 0)),
+    typing (lam "x" $ var "x") @?= Right ((Hole $ HoleId 0) ~> (Hole $ HoleId 0)),
   testCase "λx.x x : Fail" $
-    isLeft (typeCheck (lam "x" $ var "x" <#> var "x")) @?= True,
+    isLeft (typing (lam "x" $ var "x" <#> var "x")) @?= True,
   testCase "λfxy.f (y x) : (?0 -> ?1) -> ?2 -> (?2 -> ?0) -> ?1" $
-    typeCheck (lam "f" $ lam "x" $ lam "y" $ var "f" <#> (var "y" <#> var "x"))
+    typing (lam "f" $ lam "x" $ lam "y" $ var "f" <#> (var "y" <#> var "x"))
     @?= Right ((hole 0 ~> hole 1) ~> hole 2 ~> (hole 2 ~> hole 0) ~> hole 1),
   testCase "λfxy.f x (f x y) : (?0 -> ?1 -> ?1) -> ?0 -> ?1 -> ?1" $
-    typeCheck (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
+    typing (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
     @?= Right ((hole 0 ~> hole 1 ~> hole 1) ~> hole 0 ~> hole 1 ~> hole 1)
   ]
 
 callCC = lam "f" $ mu "a" $ var "f" <#> lam "x" (name "a" $ var "x")
 
-andT r a b = (a ~> b ~> r) ~> r
+andT a b = (a ~> b ~> Bottom) ~> Bottom
 proj1 = lam "f" $ mu "alpha" $ var "f" <#> (lam "a" $ lam "b" $ name "alpha" $ var "a")
 proj2 = lam "f" $ mu "beta" $ var "f" <#> (lam "a" $ lam "b" $ name "beta" $ var "b")
 mkPair = lam "a" $ lam "b" $ lam "f" $ var "f" <#> var "a" <#> var "b"
 
-orT r a b = (a ~> r) ~> (b ~> r) ~> r
+orT a b = (a ~> Bottom) ~> (b ~> Bottom) ~> Bottom
 inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
 inj2 = lam "b" $ lam "f" $ lam "g" $ var "g" <#> var "b"
 ite = lam "ab" $ lam "f" $ lam "g" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "f" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "g" <#> var "b")))
 
-typeCheckMuTest = testGroup "typeCheck mu" [
+typingMuTest = testGroup "typing" [
   testCase "μα. [α](λx. x) : ?0 -> ?0" $
-    typeCheck (mu "a" $ name "a" $ lam "x" $ var "x") @?= Right (hole 0 ~> hole 0),
+    typing (mu "a" $ name "a" $ lam "x" $ var "x") @?= Right (hole 0 ~> hole 0),
   testCase "callCC := λf. μα. f (λx. [α]x) : ¬¬?0 -> ?0" $
-    typeCheck callCC @?= Right (((hole 0 ~> Bottom) ~> Bottom) ~> hole 0),
+    typing callCC @?= Right (((hole 0 ~> Bottom) ~> Bottom) ~> hole 0),
   testCase "proj1 := λf. μα. f (λa. λb. [α] a) : ?0 /\\ ?1 -> ?0" $
-    typeCheck proj1 @?= Right (andT Bottom (hole 0) (hole 1) ~> hole 0),
+    typing proj1 @?= Right (andT (hole 0) (hole 1) ~> hole 0),
   testCase "proj2 := λf. μα. f (λa. λb. [α] b) : ?0 /\\ ?1 -> ?1" $
-    typeCheck proj2 @?= Right (andT Bottom (hole 0) (hole 1) ~> hole 1),
+    typing proj2 @?= Right (andT (hole 0) (hole 1) ~> hole 1),
   testCase "mkPair := λa. λb. λf. f a b : ?0 -> ?1 -> ?0 /\\ ?1" $
-    typeCheck mkPair @?= Right (hole 0 ~> hole 1 ~> andT (hole 2) (hole 0) (hole 1)),
-  testCase "ite := λab. λf. λg. callCC (λh. ab (λa. h (f a)) (λb. h (g b)))" $
-    typeCheck ite @?= Right (orT (hole 2) (hole 0) (hole 1) ~> (hole 0 ~> hole 3) ~> (hole 1 ~> hole 3) ~> hole 3)
+    typing mkPair @?= Right (hole 0 ~> hole 1 ~> (hole 0 ~> hole 1 ~> hole 2) ~> hole 2)
+  ]
+
+typeCheckTest = testGroup "typeCheck" [
+  testCase "mkPair := λa. λb. λf. f a b : ?0 -> ?1 -> ?0 /\\ ?1" $
+    isRight (typeCheck mkPair (hole 0 ~> hole 1 ~> andT (hole 0) (hole 1))) @?= True,
+  testCase "inj1 := λa. λf. λg. f a : ?0 -> ?0 \\/ ?1" $
+    isRight (typeCheck inj1 (hole 0 ~> orT (hole 0) (hole 1))) @?= True,
+  testCase "ite := λab. λf. λg. callCC (λh. ab (λa. h (f a)) (λb. h (g b))) : ?0 \\/ ?1 -> (?0 -> ?3) -> (?1 -> ?3) -> ?3" $
+    isRight (typeCheck ite (orT (hole 0) (hole 1) ~> (hole 0 ~> hole 3) ~> (hole 1 ~> hole 3) ~> hole 3)) @?= True
   ]
 
 normalizeTest = testGroup "normalize" [
@@ -79,7 +86,8 @@ normalizeTest = testGroup "normalize" [
 muTests = [
   showTypTest,
   showExprTest,
+  typingTest,
+  typingMuTest,
   typeCheckTest,
-  typeCheckMuTest,
   normalizeTest
   ]
