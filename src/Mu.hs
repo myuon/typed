@@ -11,12 +11,12 @@ import Control.Monad.State
 import Control.Arrow (second, (***))
 import Control.Lens hiding (Context)
 
-newtype VarId = VarId String deriving (Eq, Ord)
-newtype CtrlId = CtrlId String deriving (Eq, Ord)
+data VarId = VarId String Int deriving (Eq, Ord)
+data CtrlId = CtrlId String Int deriving (Eq, Ord)
 newtype HoleId = HoleId Int deriving (Eq, Ord)
 
-instance Show VarId where show (VarId v) = v
-instance Show CtrlId where show (CtrlId v) = v
+instance Show VarId where show (VarId v uid) = v
+instance Show CtrlId where show (CtrlId v uid) = v
 instance Show HoleId where show (HoleId v) = show v
 
 data Expr =
@@ -27,21 +27,27 @@ data Expr =
   | Mu CtrlId Expr
   deriving (Eq)
 
+varId :: String -> VarId
+varId s = VarId s 0
+
+ctrlId :: String -> CtrlId
+ctrlId s = CtrlId s 0
+
 var :: String -> Expr
-var = Var . VarId
+var = Var . varId
 
 lam :: String -> Expr -> Expr
-lam v = Lambda (VarId v)
+lam v = Lambda (varId v)
 
 infixl 2 <#>
 (<#>) :: Expr -> Expr -> Expr
-(<#>) e1 e2 = App e1 e2
+(<#>) = App
 
 name :: String -> Expr -> Expr
-name v = Name (CtrlId v)
+name = Name . ctrlId
 
 mu :: String -> Expr -> Expr
-mu v = Mu (CtrlId v)
+mu v = Mu (ctrlId v)
 
 instance Show Expr where
   show (Var v) = show v
@@ -89,8 +95,8 @@ data Environment = Environment {
 
 makeLenses ''Environment
 
-defEnv :: Environment
-defEnv = Environment (HoleId 0) M.empty M.empty S.empty
+def :: Environment
+def = Environment (HoleId 0) M.empty M.empty S.empty
 
 newHole :: State Environment HoleId
 newHole = do
@@ -98,8 +104,50 @@ newHole = do
   holeIndex %= (\(HoleId n) -> HoleId $ n+1)
   return hole
 
+shadowing :: Expr -> Expr
+shadowing expr = evalState (rename expr) 0
+  where
+    renameVar v0 uid = go where
+      go (Var (VarId v _)) | v0 == v = Var (VarId v uid)
+      go (Var v) = Var v
+      go (Lambda v expr) = Lambda v (go expr)
+      go (App e1 e2) = App (go e1) (go e2)
+      go (Name c expr) = Name c (go expr)
+      go (Mu c expr) = Mu c (go expr)
+
+    renameCtrl c0 uid = go where
+      go (Var v) = Var v
+      go (Lambda v expr) = Lambda v (go expr)
+      go (App e1 e2) = App (go e1) (go e2)
+      go (Name (CtrlId c _) expr) | c0 == c = Name (CtrlId c uid) expr
+      go (Name c expr) = Name c (go expr)
+      go (Mu c expr) = Mu c (go expr)
+
+    rename :: Expr -> State Int Expr
+    rename (Var v) = return $ Var v
+    rename (Lambda (VarId v _) expr) = do
+      uid <- get
+      modify (+1)
+      expr' <- rename $ renameVar v uid expr
+      return $ Lambda (VarId v uid) expr'
+    rename (App e1 e2) = liftM2 App (rename e1) (rename e2)
+    rename (Name c expr) = Name c <$> rename expr
+    rename (Mu (CtrlId c _) expr) = do
+      uid <- get
+      modify (+1)
+      expr' <- rename $ renameCtrl c uid expr
+      return $ Mu (CtrlId c uid) expr'
+
+unshadowing :: Expr -> Expr
+unshadowing = go where
+  go (Var (VarId v _)) = Var (varId v)
+  go (Lambda (VarId v _) expr) = Lambda (varId v) (go expr)
+  go (App e1 e2) = App (go e1) (go e2)
+  go (Name (CtrlId c _) expr) = Name (ctrlId c) expr
+  go (Mu (CtrlId c _) expr) = Mu (ctrlId c) (go expr)
+
 typeCheck :: Expr -> Either String Typ
-typeCheck expr = reindex <$> evalState (typing expr) defEnv
+typeCheck expr = reindex <$> evalState (typing $ shadowing expr) def
   where
     reindex t = go t where
       rmap = zip (holesIn t) (fmap hole [0..])
@@ -119,7 +167,8 @@ typing (Lambda var expr) = do
   mtyp <- case var `M.member` vmap of
     True -> return $ Left $ "Variable already used: " ++ show var ++ " in " ++ show vmap
     False -> do
-      newHole >>= \hole -> vctx %= M.insert var (Hole hole)
+      h <- newHole
+      vctx %= M.insert var (Hole h)
       typing expr
   vmap <- use vctx
   return $ (\m -> (vmap M.! var) ~> m) <$> mtyp
@@ -172,7 +221,8 @@ typing (Mu name expr) = do
   case name `M.member` cmap of
     True -> return $ Left $ "Name already used: " ++ show name ++ " in " ++ show cmap
     False -> do
-      newHole >>= \h -> cctx %= M.insert name (Hole h)
+      h <- newHole
+      cctx %= M.insert name (Hole h)
       etyp <- typing expr
 
       case etyp of
@@ -199,12 +249,12 @@ holesIn = nub . go where
 
 unify :: (Typ, Typ) -> Unifiers -> State Environment (Either String (Unifiers, Typ))
 unify pq us = do
-  vctx %= M.insert (VarId "?goal") (pq ^. _1)
+  vctx %= M.insert (varId "?goal") (pq ^. _1)
   r <- go pq us
   vmap <- use vctx
-  vctx %= M.delete (VarId "?goal")
+  vctx %= M.delete (varId "?goal")
 
-  return $ (\us -> (us, vmap M.! VarId "?goal")) <$> r
+  return $ (\us -> (us, vmap M.! varId "?goal")) <$> r
   where
     subst :: HoleId -> Typ -> Typ -> Typ
     subst v m (Hole w)
@@ -227,6 +277,7 @@ unify pq us = do
           Left err -> return $ Left err
           Right us -> go (t21, t22) us
       (p@(Arrow _ _), Hole v) -> go (Hole v, p) others
+      (Hole v, Hole v') | v > v' -> go (Hole v', Hole v) others
       (Hole v, typ)
         | v `elem` holesIn typ -> return $ Left $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
         | otherwise -> do
@@ -237,7 +288,7 @@ unify pq us = do
       (p,q) -> return $ Left $ "Unification failed: " ++ show p ++ " & " ++ show q
 
 normalize :: Expr -> Expr
-normalize = go where
+normalize = unshadowing . go . shadowing where
   substV :: Expr -> VarId -> Expr -> Expr
   substV (Var w) v m
     | v == w = m
@@ -260,34 +311,19 @@ normalize = go where
   go (App (Mu alpha u) v) = go $ Mu alpha $ substC u alpha v
   go (Var x) = Var x
   go (Lambda var m) = Lambda var $ go m
-  go (App t1 t2) =
-    let t1' = go t1; t2' = go t2 in
-      (if t1 == t1' && t2 == t2' then id else go) $ App t1' t2'
+  go (App t1 t2) = let t1' = go t1; t2' = go t2 in
+    (if t1 == t1' && t2 == t2' then id else go) $ App t1' t2'
   go (Name alpha m) = Name alpha $ go m
   go (Mu alpha (Name beta m)) | alpha == beta = go m
   go (Mu alpha m) = let m' = go m in (if m == m' then id else go) $ Mu alpha m'
 
+run :: IO ()
 run = do
-  let andT a b = (a ~> b ~> Bottom) ~> Bottom
-  let proj1 = lam "ab" $ mu "alpha" $ var "ab" <#> (lam "a" $ lam "b" $ name "alpha" $ var "a")
-  print $ typeCheck proj1
+  print $ normalize (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
+  print $ typeCheck (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
 
-  let mkPair = lam "a" $ lam "b" $ lam "f" $ var "f" <#> var "a" <#> var "b"
-  print $ typeCheck mkPair
+  let callCC = lam "f" $ mu "a" $ var "f" <#> lam "x" (name "a" $ var "x")
+  let ite = lam "ab" $ lam "f" $ lam "g" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "f" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "g" <#> var "b")))
+  print $ normalize $ ite
 
-  print $ normalize $ lam "M" $ lam "N" $ proj1 <#> (mkPair <#> var "M" <#> var "N")
-  -- lam M. lam N. M
-
-  let orT a b = (a ~> Bottom) ~> (b ~> Bottom) ~> Bottom
-  let inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
-  print $ typeCheck inj1
-
-  let callCC = lam "k" $ mu "a" $ var "k" <#> (lam "x" $ name "a" $ var "x")
-  print $ typeCheck callCC
-
-  let ite = lam "ab" $ lam "AC" $ lam "BC" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "AC" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "BC" <#> var "b")))
-  print $ typeCheck ite
-
-  print $ normalize $ lam "M" $ lam "f" $ lam "g" $ ite <#> (inj1 <#> var "M") <#> var "f" <#> var "g"
-
-  
+  return ()
