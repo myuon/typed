@@ -250,7 +250,7 @@ holesIn = nub . go where
 unify :: (Typ, Typ) -> Unifiers -> State Environment (Either String (Unifiers, Typ))
 unify pq us = do
   vctx %= M.insert (varId "?goal") (pq ^. _1)
-  r <- go pq us
+  r <- unify' $ S.insert pq us
   vmap <- use vctx
   vctx %= M.delete (varId "?goal")
 
