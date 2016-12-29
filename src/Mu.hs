@@ -328,11 +328,9 @@ normalize = unshadowing . go . shadowing where
   go (Mu alpha (Name beta m)) | alpha == beta = go m
   go (Mu alpha m) = let m' = go m in (if m == m' then id else go) $ Mu alpha m'
 
-run :: IO ()
-run = do
+main :: IO ()
+main = do
   let inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
-  -- ?2 -> (?2 -> ?3) -> ?4 -> ?3
-  -- ?0 -> (?0 -> _|_) -> (?1 -> _|_) -> _|_
   print $ typeCheck inj1 (hole 0 ~> (hole 0 ~> Bottom) ~> (hole 1 ~> Bottom) ~> Bottom)
 
   return ()
