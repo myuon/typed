@@ -3,6 +3,8 @@ module SimplyTest (simplyTests) where
 import Test.Tasty
 import Test.Tasty.HUnit
 import Data.Either (isRight, isLeft)
+import Control.Monad.Except
+import Control.Monad.Catch.Pure
 import Simply
 
 showTypTest = testGroup "show Typ" [
@@ -19,22 +21,22 @@ showExprTest = testGroup "show Expr" [
 
 typingTest = testGroup "typing" [
   testCase "x : Fail" $
-    isLeft (typing (var "x")) @?= True,
+    typing (var "x") @?= Nothing,
   testCase "λx. λy. x y : (?0 -> ?1) -> ?0 -> ?1" $
-    typing (lam "x" $ lam "y" $ var "x" <#> var "y") @?= Right ((hole 0 ~> hole 1) ~> hole 0 ~> hole 1),
+    typing (lam "x" $ lam "y" $ var "x" <#> var "y") @?= Just ((hole 0 ~> hole 1) ~> hole 0 ~> hole 1),
   testCase "λx.x : ?0 -> ?0" $
-    typing (lam "x" $ var "x") @?= Right ((Hole $ HoleId 0) ~> (Hole $ HoleId 0)),
+    typing (lam "x" $ var "x") @?= Just ((Hole $ HoleId 0) ~> (Hole $ HoleId 0)),
   testCase "λx.x x : Fail" $
-    isLeft (typing (lam "x" $ var "x" <#> var "x")) @?= True,
+    typing (lam "x" $ var "x" <#> var "x") @?= Nothing,
   testCase "λfxy.f (y x) : (?0 -> ?1) -> ?2 -> (?2 -> ?0) -> ?1" $
     typing (lam "f" $ lam "x" $ lam "y" $ var "f" <#> (var "y" <#> var "x"))
-    @?= Right ((hole 0 ~> hole 1) ~> hole 2 ~> (hole 2 ~> hole 0) ~> hole 1),
+    @?= Just ((hole 0 ~> hole 1) ~> hole 2 ~> (hole 2 ~> hole 0) ~> hole 1),
   testCase "λfxy.f x (f x y) : (?0 -> ?1 -> ?1) -> ?0 -> ?1 -> ?1" $
     typing (lam "f" $ lam "x" $ lam "y" $ var "f" <#> var "x" <#> (var "f" <#> var "x" <#> var "y"))
-    @?= Right ((hole 0 ~> hole 1 ~> hole 1) ~> hole 0 ~> hole 1 ~> hole 1),
+    @?= Just ((hole 0 ~> hole 1 ~> hole 1) ~> hole 0 ~> hole 1 ~> hole 1),
   testCase "λf. λx. f (f (f x)) : (?0 -> ?0) -> ?0 -> ?0" $
     typing (lam "f" $ lam "x" $ var "f" <#> (var "f" <#> (var "f" <#> var "x")))
-    @?= Right ((hole 0 ~> hole 0) ~> hole 0 ~> hole 0)
+    @?= Just ((hole 0 ~> hole 0) ~> hole 0 ~> hole 0)
   ]
 
 typeCheckTest = testGroup "typeCheck" [

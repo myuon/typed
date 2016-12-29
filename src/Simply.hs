@@ -3,11 +3,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Simply where
 
+import Data.Typeable
 import Data.Maybe (fromJust)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 import Control.Monad.State
+import Control.Monad.Except
+import Control.Monad.Catch
 import Control.Arrow (second, (***))
 import Control.Lens hiding (Context)
 
@@ -84,7 +87,7 @@ makeLenses ''Environment
 def :: Environment
 def = Environment (HoleId 0) M.empty S.empty
 
-newHole :: State Environment HoleId
+newHole :: (Monad m) => StateT Environment m HoleId
 newHole = do
   hole <- use holeIndex
   holeIndex %= (\(HoleId n) -> HoleId $ n+1)
@@ -114,8 +117,13 @@ unshadowing = go where
   go (Lambda (VarId v _) expr) = Lambda (varId v) (go expr)
   go (App e1 e2) = App (go e1) (go e2)
 
-typing :: Expr -> Either String Typ
-typing expr = reindex <$> evalState (typing' $ shadowing expr) def
+data TypeError = VariableNotInScope String | VariableAlreadyUsed String | TypeNotMatch String
+  deriving (Show, Typeable)
+
+instance Exception TypeError
+
+typing :: MonadThrow m => Expr -> m Typ
+typing expr = reindex <$> evalStateT (typing' $ shadowing expr) def
   where
     reindex t = go t where
       rmap = zip (holesIn t) (fmap hole [0..])
@@ -124,53 +132,41 @@ typing expr = reindex <$> evalState (typing' $ shadowing expr) def
       go (Arrow e1 e2) = Arrow (go e1) (go e2)
       go Bottom = Bottom
 
-    typing' :: Expr -> State Environment (Either String Typ)
+    typing' :: MonadThrow m => Expr -> StateT Environment m Typ
     typing' (Var var) = do
       vmap <- use vctx
       case var `M.member` vmap of
-        True -> return $ Right $ vmap M.! var
-        False -> return $ Left $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap
+        True -> return $ vmap M.! var
+        False -> throwM $ VariableNotInScope $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap
     typing' (Lambda var expr) = do
       vmap <- use vctx
       mtyp <- case var `M.member` vmap of
-        True -> return $ Left $ "Variable already used: " ++ show var ++ " in " ++ show vmap
+        True -> throwM $ VariableAlreadyUsed $ "Variable already used: " ++ show var ++ " in " ++ show vmap
         False -> do
           h <- newHole
           vctx %= M.insert var (Hole h)
           typing' expr
       vmap <- use vctx
-      return $ (\m -> (vmap M.! var) ~> m) <$> mtyp
+      return $ (vmap M.! var) ~> mtyp
     typing' (App expr1 expr2) = do
       env <- get
       typ1 <- typing' expr1
       vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
       typ2 <- typing' expr2
       vctx %= M.filterWithKey (\k _ -> k `M.member` (env^.vctx))
-      case (typ1, typ2) of
-        (Left e1, Left e2) -> return $ Left $ e1 ++ "\n" ++ e2
-        (Left e, _) -> return $ Left e
-        (_, Left e) -> return $ Left e
-        (Right t1, Right t2) -> do
-          succeeded <- do
-            h <- newHole
-            us <- use unifiers
-            unify (t1, t2 ~> Hole h) us
 
-          case succeeded of
-            Left err -> return $ Left err
-            Right (us, typ) -> do
-              unifiers .= us
+      (us,typ) <- join $ liftM2 (\h -> unify (typ1, typ2 ~> Hole h)) newHole (use unifiers)
+      unifiers .= us
+      case typ of
+        (Arrow _ v) -> return v
+        t -> throwM $ TypeNotMatch $ "Type not match: " ++ show t ++ " is not a function type"
 
-              case typ of
-                (Arrow _ v) -> return $ Right v
-                t -> return $ Left $ "Type not match: " ++ show t ++ " is not a function type"
-
-typeCheck :: Expr -> Typ -> Either String Typ
+typeCheck :: MonadThrow m => Expr -> Typ -> m Typ
 typeCheck expr typ = do
   let hs = holesIn typ
   let HoleId m = if null hs then HoleId 0 else maximum hs
   typ' <- typing expr
-  snd <$> evalState (unify (typ, hmap (\(HoleId h) -> HoleId (h+m+1)) typ') S.empty) def
+  snd <$> evalStateT (unify (typ, hmap (\(HoleId h) -> HoleId (h+m+1)) typ') S.empty) def
 
   where
     hmap :: (HoleId -> HoleId) -> Typ -> Typ
@@ -185,14 +181,19 @@ holesIn = nub . go where
   go (Arrow t1 t2) = go t1 ++ go t2
   go (Hole v) = [v]
 
-unify :: (Typ, Typ) -> Unifiers -> State Environment (Either String (Unifiers, Typ))
+data UnificationError = UnificationFailed String | UnificationLoop String
+  deriving (Show, Typeable)
+
+instance Exception UnificationError
+
+unify :: MonadThrow m => (Typ, Typ) -> Unifiers -> StateT Environment m (Unifiers, Typ)
 unify pq us = do
   vctx %= M.insert (varId "?goal") (pq ^. _1)
   r <- unify' $ S.insert pq us
   vmap <- use vctx
   vctx %= M.delete (varId "?goal")
 
-  return $ (\us -> (us, vmap M.! varId "?goal")) <$> r
+  return (r, vmap M.! varId "?goal")
   where
     subst :: HoleId -> Typ -> Typ -> Typ
     subst v m (Hole w)
@@ -201,12 +202,12 @@ unify pq us = do
     subst v m (Arrow t1 t2) = Arrow (subst v m t1) (subst v m t2)
     subst v m Bottom = Bottom
 
-    unify' :: Unifiers -> State Environment (Either String Unifiers)
+    unify' :: MonadThrow m => Unifiers -> StateT Environment m Unifiers
     unify' us = case S.minView us of
       Just j -> uncurry go j
-      Nothing -> return $ Right S.empty
+      Nothing -> return S.empty
 
-    go :: (Typ, Typ) -> Unifiers -> State Environment (Either String Unifiers)
+    go :: MonadThrow m => (Typ, Typ) -> Unifiers -> StateT Environment m Unifiers
     go this others = case this of
       (p,q) | p == q -> unify' others
       (Arrow t11 t12, Arrow t21 t22) -> unify' $ S.insert (t11,t21) $ S.insert (t12,t22) others
@@ -214,12 +215,12 @@ unify pq us = do
       (Bottom, Hole v) -> go (Hole v, Bottom) others
       (Hole v, Hole v') | v > v' -> go (Hole v', Hole v) others
       (Hole v, typ)
-        | v `elem` holesIn typ -> return $ Left $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
+        | v `elem` holesIn typ -> throwM $ UnificationLoop $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
         | otherwise -> do
           vctx %= fmap (subst v typ)
           es <- unify' $ S.map (subst v typ *** subst v typ) others
-          return $ S.insert (Hole v, typ) <$> es
-      (p,q) -> return $ Left $ "Unification failed: " ++ show p ++ " & " ++ show q
+          return $ S.insert (Hole v, typ) es
+      (p,q) -> throwM $ UnificationFailed $ "Unification failed: " ++ show p ++ " & " ++ show q
 
 normalize :: Expr -> Expr
 normalize = unshadowing . go . shadowing where
