@@ -1,12 +1,12 @@
 name:                typed
 version:             0.1.0.0
-synopsis:            Initial project template from stack
+synopsis:            Typed Lambda Calculus
 description:         Please see README.md
-homepage:            https://github.com/githubuser/typed#readme
+homepage:            https://github.com/myuon/typed
 license:             MIT
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
+author:              myuon
+maintainer:          ioi.joi.koi.loi@gmail.com
 copyright:           2016 myuon
 category:            Other
 build-type:          Simple
@@ -38,4 +38,4 @@ test-suite typed-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/typed
+  location: https://github.com/myuon/typed
