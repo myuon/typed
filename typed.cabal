@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Mu
+  exposed-modules:     Simply, Mu
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens
