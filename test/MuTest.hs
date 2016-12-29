@@ -48,6 +48,16 @@ inj1 = lam "a" $ lam "f" $ lam "g" $ var "f" <#> var "a"
 inj2 = lam "b" $ lam "f" $ lam "g" $ var "g" <#> var "b"
 ite = lam "ab" $ lam "f" $ lam "g" $ callCC <#> (lam "h" $ var "ab" <#> (lam "a" $ var "h" <#> (var "f" <#> var "a")) <#> (lam "b" $ var "h" <#> (var "g" <#> var "b")))
 
+boolean = Bottom ~> Bottom ~> Bottom
+true = lam "x" $ lam "y" $ var "x"
+false = lam "x" $ lam "y" $ var "y"
+
+nat = Bottom ~> (Bottom ~> Bottom) ~> Bottom
+zero = lam "z" $ lam "s" $ var "z"
+suc = lam "n" $ lam "z" $ lam "s" $ var "s" <#> (var "n" <#> var "z" <#> var "s")
+-- nat -> C -> (nat -> C -> C) -> C
+--prim = lam "n" $ lam "g0" $ lam "gs" $ callCC <#> (lam "k" $ var "n" <#> (var "k" <#> var "g0") <#> (lam "p" $ var "k" <#> (var "gs" <#> var "n" <#> )))
+
 typingMuTest = testGroup "typing" [
   testCase "μα. [α](λx. x) : ?0 -> ?0" $
     typing (mu "a" $ name "a" $ lam "x" $ var "x") @?= Right (hole 0 ~> hole 0),
@@ -66,8 +76,12 @@ typeCheckTest = testGroup "typeCheck" [
     isRight (typeCheck mkPair (hole 0 ~> hole 1 ~> andT (hole 0) (hole 1))) @?= True,
   testCase "inj1 := λa. λf. λg. f a : ?0 -> ?0 \\/ ?1" $
     isRight (typeCheck inj1 (hole 0 ~> orT (hole 0) (hole 1))) @?= True,
-  testCase "ite := λab. λf. λg. callCC (λh. ab (λa. h (f a)) (λb. h (g b))) : ?0 \\/ ?1 -> (?0 -> ?3) -> (?1 -> ?3) -> ?3" $
-    isRight (typeCheck ite (orT (hole 0) (hole 1) ~> (hole 0 ~> hole 3) ~> (hole 1 ~> hole 3) ~> hole 3)) @?= True
+  testCase "ite := λab. λf. λg. callCC (λh. ab (λa. h (f a)) (λb. h (g b))) : ?0 \\/ ?1 -> (?0 -> ?2) -> (?1 -> ?2) -> ?2" $
+    isRight (typeCheck ite (orT (hole 0) (hole 1) ~> (hole 0 ~> hole 2) ~> (hole 1 ~> hole 2) ~> hole 2)) @?= True,
+  testCase "true : boolean" $
+    isRight (typeCheck true boolean) @?= True,
+  testCase "suc (suc zero) : nat" $
+    isRight (typeCheck (suc <#> (suc <#> zero)) nat) @?= True
   ]
 
 normalizeTest = testGroup "normalize" [
@@ -79,8 +93,6 @@ normalizeTest = testGroup "normalize" [
     normalize (lam "M" $ lam "f" $ lam "g" $ ite <#> (inj1 <#> var "M") <#> var "f" <#> var "g") @?= (lam "M" $ lam "f" $ lam "g" $ var "f" <#> var "M"),
   testCase "inj1 (ite ab f g) = g N" $
     normalize (lam "N" $ lam "f" $ lam "g" $ ite <#> (inj2 <#> var "N") <#> var "f" <#> var "g") @?= (lam "N" $ lam "f" $ lam "g" $ var "g" <#> var "N")
---  testCase "mkPair (proj1 M) (proj2 M) = M" $
---    normalize (lam "M" $ mkPair <#> (proj1 <#> var "M") <#> (proj2 <#> var "M")) @?= (lam "M" $ var "M")
   ]
 
 muTests = [
