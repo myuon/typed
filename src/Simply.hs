@@ -211,7 +211,6 @@ unify pq us = do
           vctx %= fmap (subst v typ)
           es <- unify' $ S.map (subst v typ *** subst v typ) others
           return $ S.insert (Hole v, typ) es
-      (p,q) -> throwM $ UnificationFailed $ "Unification failed: " ++ show p ++ " & " ++ show q
 
 normalize :: Expr -> Expr
 normalize = unshadowing . go . shadowing where
