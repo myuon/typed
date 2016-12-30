@@ -52,14 +52,12 @@ instance Show Expr where
 
 data Typ =
   Arrow Typ Typ
-  | Bottom
   | Hole HoleId
   deriving (Eq, Ord)
 
 instance Show Typ where
   show (Arrow t1@(Arrow _ _) t2) = "(" ++ show t1 ++ ") -> " ++ show t2
   show (Arrow t1 t2) = show t1 ++ " -> " ++ show t2
-  show Bottom = "_|_"
   show (Hole v) = "?" ++ show v
 
 infixr 5 ~>
@@ -128,7 +126,6 @@ typing expr = reindex <$> evalStateT (typing' $ shadowing expr) def
 
       go (Hole v) = fromJust $ lookup v rmap
       go (Arrow e1 e2) = Arrow (go e1) (go e2)
-      go Bottom = Bottom
 
     typing' :: MonadThrow m => Expr -> StateT Environment m Typ
     typing' (Var var) = do
@@ -171,11 +168,9 @@ typeCheck expr typ = do
     hmap f = go where
       go (Hole n) = Hole $ f n
       go (Arrow e1 e2) = Arrow (go e1) (go e2)
-      go Bottom = Bottom
 
 holesIn :: Typ -> [HoleId]
 holesIn = nub . go where
-  go Bottom = []
   go (Arrow t1 t2) = go t1 ++ go t2
   go (Hole v) = [v]
 
@@ -198,7 +193,6 @@ unify pq us = do
       | v == w = m
       | otherwise = Hole w
     subst v m (Arrow t1 t2) = Arrow (subst v m t1) (subst v m t2)
-    subst v m Bottom = Bottom
 
     unify' :: MonadThrow m => Unifiers -> StateT Environment m Unifiers
     unify' us = case S.minView us of
@@ -210,7 +204,6 @@ unify pq us = do
       (p,q) | p == q -> unify' others
       (Arrow t11 t12, Arrow t21 t22) -> unify' $ S.insert (t11,t21) $ S.insert (t12,t22) others
       (p@(Arrow _ _), Hole v) -> go (Hole v, p) others
-      (Bottom, Hole v) -> go (Hole v, Bottom) others
       (Hole v, Hole v') | v > v' -> go (Hole v', Hole v) others
       (Hole v, typ)
         | v `elem` holesIn typ -> throwM $ UnificationLoop $ "Unification failed (loop): " ++ show (Hole v) ++ " in " ++ show typ
