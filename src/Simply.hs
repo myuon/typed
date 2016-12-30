@@ -15,11 +15,9 @@ import Control.Arrow (second, (***))
 import Control.Lens hiding (Context)
 
 data VarId = VarId String Int deriving (Eq, Ord)
-data CtrlId = CtrlId String Int deriving (Eq, Ord)
 newtype HoleId = HoleId Int deriving (Eq, Ord)
 
 instance Show VarId where show (VarId v uid) = v
-instance Show CtrlId where show (CtrlId v uid) = v
 instance Show HoleId where show (HoleId v) = show v
 
 data Expr =
