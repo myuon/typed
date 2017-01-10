@@ -35,6 +35,7 @@ data Expr =
   | Star
   | InjL Expr
   | InjR Expr
+  | Case Expr Expr Expr
   | Intro Alg Expr
   | Elim Alg Expr
   deriving (Eq)
@@ -62,6 +63,7 @@ instance Show Expr where
   show Star = "*"
   show (InjL expr) = "injL(" ++ show expr ++ ")"
   show (InjR expr) = "injR(" ++ show expr ++ ")"
+  show (Case ab f g) = "case " ++ show ab ++ " of { " ++ show f ++ "; " ++ show g ++ " }"
   show (Intro _ expr) = "intro(" ++ show expr ++ ")"
   show (Elim _ expr) = "elim(" ++ show expr ++ ")"
 
@@ -134,6 +136,7 @@ shadowing expr = evalState (rename expr) 0
       go Star = Star
       go (InjL t) = InjL (go t)
       go (InjR t) = InjR (go t)
+      go (Case ab f g) = Case (go ab) (go f) (go g)
       go (Intro alg t) = Intro alg (go t)
       go (Elim alg t) = Elim alg (go t)
 
@@ -148,6 +151,7 @@ shadowing expr = evalState (rename expr) 0
     rename Star = return Star
     rename (InjL t) = fmap InjL (rename t)
     rename (InjR t) = fmap InjR (rename t)
+    rename (Case ab f g) = liftM3 Case (rename ab) (rename f) (rename g)
     rename (Intro alg t) = fmap (Intro alg) (rename t)
     rename (Elim alg t) = fmap (Elim alg) (rename t)
 
@@ -159,6 +163,7 @@ unshadowing = go where
   go Star = go Star
   go (InjL t) = InjL (go t)
   go (InjR t) = InjR (go t)
+  go (Case ab f g) = Case (go ab) (go f) (go g)
   go (Intro alg t) = Intro alg (go t)
   go (Elim alg t) = Elim alg (go t)
 
@@ -185,7 +190,7 @@ typing expr = reindex <$> evalStateT (typing' $ shadowing expr) def
       go (TVar v)
         | tvar == v = return term
         | otherwise = return (TVar v)
-      go (Hole v) = throwM $ Ambiguous $ show v ++ " in " ++ show t ++ " is ambiguous"
+      go (Hole v) = throwM $ Ambiguous $ show v ++ " in " ++ show t ++ " is ambiguous" ++ "\n" ++ show expr
       go (Arrow t1 t2) = liftM2 Arrow (go t1) (go t2)
       go One = return One
       go (Sum t1 t2) = liftM2 Sum (go t1) (go t2)
@@ -198,11 +203,11 @@ typing expr = reindex <$> evalStateT (typing' $ shadowing expr) def
       vmap <- use vctx
       case var `M.member` vmap of
         True -> return $ vmap M.! var
-        False -> throwM $ VariableNotInScope $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap
+        False -> throwM $ VariableNotInScope $ "Variable not in scope: " ++ show var ++ " in " ++ show vmap ++ "\n" ++ show expr
     typing' (Lambda var expr) = do
       vmap <- use vctx
       mtyp <- case var `M.member` vmap of
-        True -> throwM $ VariableAlreadyUsed $ "Variable already used: " ++ show var ++ " in " ++ show vmap
+        True -> throwM $ VariableAlreadyUsed $ "Variable already used: " ++ show var ++ " in " ++ show vmap ++ "\n" ++ show expr
         False -> do
           h <- newHole
           vctx %= M.insert var (Hole h)
@@ -219,24 +224,36 @@ typing expr = reindex <$> evalStateT (typing' $ shadowing expr) def
       typ <- (\h -> unify (typ1, typ2 ~> Hole h)) =<< newHole
       case typ of
         (Arrow _ v) -> return v
-        t -> throwM $ TypeNotMatch $ "Type not match: " ++ show t ++ " is not a function type"
+        t -> throwM $ TypeNotMatch $ "Type not match: " ++ show t ++ " is not a function type" ++ "\n" ++ show expr ++ "\n" ++ show expr
     typing' Star = return One
     typing' (InjL expr) = do
-      typ <- typing expr
+      typ <- typing' expr
       h <- newHole
       return $ typ <+> Hole h
     typing' (InjR expr) = do
-      typ <- typing expr
+      typ <- typing' expr
       h <- newHole
       return $ Hole h <+> typ
+    typing' (Case ab f g) = do
+      tab <- typing' ab
+      ha <- newHole
+      hb <- newHole
+      Sum ha' hb' <- unify (tab, Hole ha <+> Hole hb)
+
+      r <- newHole
+      tf <- typing' f
+      tg <- typing' g
+      unify (tf, ha' ~> Hole r)
+      Arrow _ r' <- unify (tg, hb' ~> Hole r)
+      return r'
     typing' (Intro (Alg x fx) expr) = do
-      etyp <- typing expr
+      etyp <- typing' expr
       _ <- do
         fmfx <- subst fx x (Mu x fx)
         unify (etyp, fmfx)
       return $ Mu x fx
     typing' (Elim (Alg x fx) expr) = do
-      etyp <- typing expr
+      etyp <- typing' expr
       mfx <- unify (etyp, Mu x fx)
       subst fx x mfx
 

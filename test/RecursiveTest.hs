@@ -19,6 +19,14 @@ showExprTest = testGroup "show Expr" [
     show (lam "x" $ lam "y" $ var "x" <#> var "x" <#> (var "y" <#> var "x")) @?= "λx. λy. xx(yx)"
   ]
 
+natBody = One <+> tvar "X"
+natAlg = Alg (tvarId "X") natBody
+nat = mu "X" natBody
+
+zero = Intro natAlg $ InjL Star
+suc = Intro natAlg . InjR
+prim = lam "g0" $ lam "gs" $ lam "n" $ Case (Elim natAlg $ var "n") (lam "_" $ var "g0") (lam "m" $ var "gs" <#> var "m")
+
 typingTest = testGroup "typing" [
   testCase "x : Fail" $
     typing (var "x") @?= Nothing,
@@ -36,10 +44,15 @@ typingTest = testGroup "typing" [
     @?= Just ((hole 0 ~> hole 1 ~> hole 1) ~> hole 0 ~> hole 1 ~> hole 1),
   testCase "λf. λx. f (f (f x)) : (?0 -> ?0) -> ?0 -> ?0" $
     typing (lam "f" $ lam "x" $ var "f" <#> (var "f" <#> (var "f" <#> var "x")))
-    @?= Just ((hole 0 ~> hole 0) ~> hole 0 ~> hole 0)
+    @?= Just ((hole 0 ~> hole 0) ~> hole 0 ~> hole 0),
+  testCase "prim" $
+    typing prim @?= Just (hole 0 ~> (nat ~> hole 0) ~> nat ~> hole 0)
   ]
 
 typeCheckTest = testGroup "typeCheck" [
+  testCase "zero : nat" $ typeCheck zero nat @?= Just nat,
+  testCase "suc zero : nat" $ typeCheck (suc zero) nat @?= Just nat,
+  testCase "suc (suc (suc (suc zero))) : nat" $ typeCheck (suc (suc (suc (suc zero)))) nat @?= Just nat
   ]
 
 normalizeTest = testGroup "normalize" [
