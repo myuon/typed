@@ -353,11 +353,5 @@ normalize = unshadowing . go . shadowing where
     (if t1 == t1' && t2 == t2' then id else go) $ App t1' t2'
 
 main :: IO ()
-main = do
-  let natBody = One <+> tvar "X"
-  let natAlg = Alg (tvarId "X") natBody
-  let nat = mu "X" natBody
-  print =<< typeCheck (Intro natAlg $ InjL Star) nat
-  print =<< typeCheck (Intro natAlg $ InjR $ Intro natAlg $ InjL Star) nat
-  print =<< typeCheck (Elim natAlg $ Intro natAlg $ InjR $ Intro natAlg $ InjL Star) (hole 0)
-  return ()
+main = return ()
+
