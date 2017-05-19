@@ -18,8 +18,16 @@ aevalTests = testGroup "aeval" $
     $ aeval @Syntax @AValue (aif atrue atrue (aif afalse afalse afalse)) @?= atrue
   ]
 
+inferTests = testGroup "infer" $
+  [ testCase "if iszero 0 then 0 else pred 0 : nat"
+    $ infer @Syntax (aif (aisZero azero) azero (apred azero)) @?= Pnat
+  , testCase "iszero (succ (succ 0)) : bool"
+    $ infer @Syntax (aisZero (asucc (asucc azero))) @?= Pbool
+  ]
+
 aexpTests =
   [ aevalTests
+  , inferTests
   ]
 
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -82,4 +84,50 @@ instance AEval Syntax AValue where
         AZero -> ATrue
         ASucc _ -> AFalse
     go exp = error $ "Not match any case: " ++ show exp
+
+-- types
+
+class AType typ where
+  bool :: typ
+  nat :: typ
+
+pattern Pbool = T.Node "bool" []
+pattern Pnat = T.Node "nat" []
+
+instance AType Syntax where
+  bool = Pbool
+  nat = Pnat
+
+class (Show repr, Show typ, AExp repr, AType typ) => AInfer repr typ where
+  infer :: repr -> typ
+  typcheck :: repr -> typ -> typ
+
+  terror :: repr -> typ -> typ -> a
+  terror m exp act = error $ concat
+    [ "TypeError> "
+    , "`" ++ show m ++ "`"
+    , " : Expected "
+    , show exp
+    , " , Actual "
+    , show act
+    ]
+
+instance AInfer Syntax Syntax where
+  infer Ptrue = bool
+  infer Pfalse = bool
+  infer (Pif b exp1 exp2) =
+    let tb = typcheck b Pbool in
+    let t1 = infer @Syntax @Syntax exp1 in
+    typcheck exp2 t1
+  infer Pzero = nat
+  infer (Psucc exp) = typcheck exp Pnat
+  infer (Ppred exp) = typcheck exp Pnat
+  infer (PisZero exp) = let Pnat = typcheck exp Pnat in Pbool
+
+  typcheck exp typ =
+    let te = infer exp in
+    case te == typ of
+      True -> typ
+      False -> terror exp typ te
+
 
