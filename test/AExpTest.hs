@@ -1,9 +1,9 @@
 {-# LANGUAGE TypeApplications #-}
-module UnAExpTest where
+module AExpTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnAExp
+import AExp
 
 aevalTests = testGroup "aeval" $
   [ testCase "if true then 0 else 1 ~> 0"

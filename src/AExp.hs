@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-module UnAExp where
+module AExp where
 
 import Control.Monad
 import qualified Data.Foldable as F
