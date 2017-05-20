@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -5,6 +6,8 @@
 module SimplyExt where
 
 import Control.Monad
+import Data.Tagged
+import GHC.TypeLits
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Map as M
@@ -40,21 +43,9 @@ instance SpExtExp Int Syntax Syntax where
 
 --
 
-class (Show repr, Show typ, SpExtExp var typ repr, SpExtType typ) => SpExtInfer var typ repr where
-  inferSpExt :: Context -> repr -> typ
-
-  typcheckSpExt :: Eq typ => Context -> repr -> typ -> typ
-  typcheckSpExt ctx exp typ =
-    let te = inferSpExt ctx exp in
-    case te == typ of
-      True -> typ
-      False -> terror exp typ te
-
-instance SpExtInfer Int Syntax Syntax where
-  inferSpExt ctx = go where
-    go Pstar = unit
-    go (Pseq exp1 exp2) =
-      let Punit = typcheckSpExt ctx exp1 unit in
-      inferSpExt ctx exp2
-    go (T.Node "##" es) = error $ show es
-    go z = inferSp ctx z
+instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) where
+  star = Tagged $ \_ -> unit
+  exp1 ## exp2 = Tagged go where
+    go ctx =
+      let Punit = typeof exp1 ctx in
+      typeof exp2 ctx

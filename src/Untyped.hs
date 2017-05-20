@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -7,6 +9,8 @@
 module Untyped where
 
 import Control.Monad
+import Data.Tagged
+import GHC.TypeLits
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
@@ -17,9 +21,8 @@ import Init
 class UVal repr where
   uabs :: repr -> repr
 
-class UVal repr => UExp repr where
-  type Var repr
-  uvar :: Var repr -> repr
+class UVal repr => UExp var repr | repr -> var where
+  uvar :: var -> repr
   uapp :: repr -> repr -> repr
   uisVal :: repr -> Bool
 
@@ -31,8 +34,7 @@ pattern Papp exp1 exp2 = T.Node "app" [exp1,exp2]
 instance UVal Syntax where
   uabs exp = Pabs exp
 
-instance UExp Syntax where
-  type Var Syntax = Int
+instance UExp Int Syntax where
   uvar = Pvar . show
   uapp = Papp
 
@@ -41,7 +43,7 @@ instance UExp Syntax where
 
 -- call-by-value
 
-class (Eq repr, UExp repr) => UEval repr where
+class (Eq repr, UExp var repr) => UEval var repr | repr -> var where
   ueval1 :: repr -> repr
 
   ueval :: repr -> repr
@@ -49,7 +51,7 @@ class (Eq repr, UExp repr) => UEval repr where
     if r == r' then r
     else ueval r'
 
-instance UEval Syntax where
+instance UEval Int Syntax where
   ueval1 = go where
     shift :: Int -> Syntax -> Syntax
     shift d = go d 0 where
@@ -71,5 +73,3 @@ instance UEval Syntax where
     go (Papp exp1 exp2) | uisVal exp1 = Papp exp1 (go exp2)
     go (Papp exp1 exp2) = Papp (go exp1) exp2
     go e = e
-
-

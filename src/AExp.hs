@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LambdaCase #-}
@@ -11,6 +12,7 @@ import Control.Monad
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
+import Data.Tagged
 import Init
 
 -- syntax tree
@@ -60,29 +62,25 @@ instance AVal AValue where
 
 -- big-step semantics
 
-class (AExp repr, AVal val) => AEval repr val where
-  aeval :: repr -> val
+instance AVal (Tagged "eval" AValue) where
+  atrue = Tagged atrue
+  afalse = Tagged afalse
+  azero = Tagged azero
+  asucc (Tagged n) = Tagged $ asucc n
 
-instance AEval Syntax AValue where
-  aeval = go where
-    go :: Syntax -> AValue
-    go Ptrue = atrue
-    go Pfalse = afalse
-    go Pzero = azero
-    go (Pif b exp1 exp2) =
-      case go b of
-        ATrue -> go exp1
-        AFalse -> go exp2
-    go (Psucc exp) = ASucc (go exp)
-    go (Ppred exp) =
-      case go exp of
-        AZero -> AZero
-        ASucc n -> n
-    go (PisZero exp) =
-      case go exp of
-        AZero -> ATrue
-        ASucc _ -> AFalse
-    go exp = error $ "Not match any case: " ++ show exp
+instance AExp (Tagged "eval" AValue) where
+  aif b exp1 exp2
+    | b == atrue = exp1
+    | b == afalse = exp2
+  apred exp = case exp of
+    Tagged AZero -> azero
+    Tagged (ASucc n) -> Tagged n
+  aisZero exp = case exp of
+    Tagged AZero -> atrue
+    Tagged (ASucc _) -> afalse
+
+aeval :: Tagged "eval" AValue -> AValue
+aeval = unTagged
 
 -- types
 
@@ -107,27 +105,30 @@ terror m exp act = error $ concat
   , show act
   ]
 
-class (Show repr, Show typ, AExp repr, AType typ) => AInfer repr typ where
-  inferA :: repr -> typ
+typeof :: Tagged "typecheck" typ -> typ
+typeof = unTagged
 
-  typcheckA :: Eq typ => repr -> typ -> typ
-  typcheckA exp typ =
-    let te = inferA exp in
-    case te == typ of
-      True -> typ
-      False -> terror exp typ te
+typecheck :: (Show typ, Eq typ) => Tagged "typecheck" typ -> typ -> typ
+typecheck exp typ =
+  let te = typeof exp in
+  case te == typ of
+    True -> typ
+    False -> terror exp typ te
 
-instance AInfer Syntax Syntax where
-  inferA Ptrue = bool
-  inferA Pfalse = bool
-  inferA (Pif b exp1 exp2) =
-    let tb = typcheckA b Pbool in
-    let t1 = inferA @Syntax @Syntax exp1 in
-    typcheckA exp2 t1
-  inferA Pzero = nat
-  inferA (Psucc exp) = typcheckA exp Pnat
-  inferA (Ppred exp) = typcheckA exp Pnat
-  inferA (PisZero exp) = let Pnat = typcheckA exp Pnat in Pbool
-  inferA z = error $ "Unexpected syntax tree: " ++ show z
+instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck" typ) where
+  atrue = Tagged bool
+  afalse = Tagged bool
+  azero = Tagged nat
+  asucc m = Tagged $ typecheck m nat
+
+instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck" typ) where
+  aif b exp1 exp2 =
+    let tb = typecheck b bool in
+    let t1 = typeof exp1 in
+    Tagged $ typecheck exp2 t1
+  apred exp = Tagged $ typecheck exp nat
+  aisZero exp =
+    case typecheck exp nat of
+      z | z == nat -> Tagged bool
 
 
