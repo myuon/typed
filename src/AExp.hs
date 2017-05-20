@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -13,6 +15,7 @@ import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
 import Data.Tagged
+import GHC.TypeLits
 import Init
 
 -- syntax tree
@@ -105,23 +108,23 @@ terror m exp act = error $ concat
   , show act
   ]
 
-typeof :: Tagged "typecheck" typ -> typ
+typeof :: Tagged (s :: Symbol) typ -> typ
 typeof = unTagged
 
-typecheck :: (Show typ, Eq typ) => Tagged "typecheck" typ -> typ -> typ
+typecheck :: (Show typ, Eq typ) => Tagged (s :: Symbol) typ -> typ -> typ
 typecheck exp typ =
   let te = typeof exp in
   case te == typ of
     True -> typ
     False -> terror exp typ te
 
-instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck" typ) where
+instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck_simpl" typ) where
   atrue = Tagged bool
   afalse = Tagged bool
   azero = Tagged nat
   asucc m = Tagged $ typecheck m nat
 
-instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck" typ) where
+instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck_simpl" typ) where
   aif b exp1 exp2 =
     let tb = typecheck b bool in
     let t1 = typeof exp1 in
@@ -131,4 +134,21 @@ instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck" typ) where
     case typecheck exp nat of
       z | z == nat -> Tagged bool
 
+instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck" (r -> typ)) where
+  atrue = Tagged $ \_ -> bool
+  afalse = Tagged $ \_ -> bool
+  azero = Tagged $ \_ -> nat
+  asucc m = Tagged $ \r -> typecheck (($ r) <$> m) nat
+
+instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck" (r -> typ)) where
+  aif b exp1 exp2 = Tagged go where
+    go ctx =
+      let tb = typecheck (($ ctx) <$> b) bool in
+      let t1 = typeof (($ ctx) <$> exp1) in
+      typecheck (($ ctx) <$> exp2) t1
+  apred exp = Tagged $ \r -> typecheck (($ r) <$> exp) nat
+  aisZero exp = Tagged go where
+    go ctx =
+      case typecheck (($ ctx) <$> exp) nat of
+        z | z == nat -> bool
 

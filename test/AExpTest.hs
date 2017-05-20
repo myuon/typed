@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 module AExpTest where
 
@@ -21,9 +22,9 @@ aevalTests = testGroup "aeval" $
 
 typeofTests = testGroup "typeof" $
   [ testCase "if iszero 0 then 0 else pred 0 : nat"
-    $ typeof (aif (aisZero azero) azero (apred azero)) @?= Pnat
+    $ typeof @"typecheck_simpl" (aif (aisZero azero) azero (apred azero)) @?= Pnat
   , testCase "iszero (succ (succ 0)) : bool"
-    $ typeof (aisZero (asucc (asucc azero))) @?= Pbool
+    $ typeof @"typecheck_simpl" (aisZero (asucc (asucc azero))) @?= Pbool
   ]
 
 aexpTests =
