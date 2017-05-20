@@ -22,18 +22,21 @@ class (SpType typ) => SpExtType typ where
   unit :: typ
   tuple :: typ -> typ -> typ
   record :: [(String, typ)] -> typ
+  coprod :: typ -> typ -> typ
 
 pattern PbaseA = T.Node "A" []
 pattern Punit = T.Node "Unit" []
 pattern Ptuple exp1 exp2 = T.Node "tuple" [exp1, exp2]
 pattern Precord es = T.Node "record" es
 pattern Precord_at label x = T.Node label [x]
+pattern Pcoprod exp1 exp2 = T.Node "sum" [exp1, exp2]
 
 instance SpExtType Syntax where
   baseA = PbaseA
   unit = Punit
   tuple = Ptuple
   record m = Precord $ fmap (\(l,x) -> Precord_at l x) m
+  coprod = Pcoprod
 
 --
 
@@ -47,6 +50,9 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   _2 :: repr -> repr
   fields :: [(String, repr)] -> repr
   proj_label :: String -> repr -> repr
+  inL_as :: repr -> typ -> repr
+  inR_as :: repr -> typ -> repr
+  case_coprod :: repr -> var -> repr -> var -> repr -> repr
 
 pattern Pstar = T.Node "*" []
 pattern Pseq exp1 exp2 = T.Node "##" [exp1, exp2]
@@ -58,6 +64,9 @@ pattern P_2 exp = T.Node "_2" [exp]
 pattern Pfields es = T.Node "fields" es
 pattern Pfield_at label x = T.Node label [x]
 pattern Pproj_label label exp = T.Node "proj_label" [T.Node label [], exp]
+pattern PinL_as exp ty = T.Node "inL_as" [exp, ty]
+pattern PinR_as exp ty = T.Node "inR_as" [exp, ty]
+pattern Pcase_coprod exp x expL y expR = T.Node "case_coprod" [exp, V x, expL, V y, expR]
 
 instance SpExtExp Int Syntax Syntax where
   star = Pstar
@@ -69,6 +78,9 @@ instance SpExtExp Int Syntax Syntax where
   _2 = P_2
   fields ms = Pfields $ fmap (\(l,x) -> Pfield_at l x) ms
   proj_label = Pproj_label
+  inL_as = PinL_as
+  inR_as = PinR_as
+  case_coprod exp x expL y expR = Pcase_coprod exp (show x) expL (show y) expR
 
 --
 
@@ -107,4 +119,19 @@ instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) whe
     go ctx =
       let Precord tys = typeof rc ctx in
       snd $ head $ filter (\x -> fst x == label) $ fmap (\(Pfield_at l x) -> (l,x)) tys
+  inL_as exp ty = Tagged go where
+    go ctx =
+      let tyL = typeof exp ctx in
+      case ty of
+        Pcoprod ty1 ty2 | ty1 == tyL -> coprod ty1 ty2
+  inR_as exp ty = Tagged go where
+    go ctx =
+      let tyR = typeof exp ctx in
+      case ty of
+        Pcoprod ty1 ty2 | ty2 == tyR -> coprod ty1 ty2
+  case_coprod exp x expL y expR = Tagged go where
+    go ctx =
+      let Pcoprod ty1 ty2 = typeof exp ctx in
+      let ty = typeof expL ((x, VarBind ty1) .: ctx) in
+      typecheck (($ ctx) <$> expR) ty
 
