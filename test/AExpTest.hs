@@ -3,6 +3,7 @@ module AExpTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import Init
 import AExp
 
 aevalTests = testGroup "aeval" $
@@ -18,8 +19,16 @@ aevalTests = testGroup "aeval" $
     $ aeval @Syntax @AValue (aif atrue atrue (aif afalse afalse afalse)) @?= atrue
   ]
 
+inferTests = testGroup "infer" $
+  [ testCase "if iszero 0 then 0 else pred 0 : nat"
+    $ inferA @Syntax (aif (aisZero azero) azero (apred azero)) @?= Pnat
+  , testCase "iszero (succ (succ 0)) : bool"
+    $ inferA @Syntax (aisZero (asucc (asucc azero))) @?= Pbool
+  ]
+
 aexpTests =
   [ aevalTests
+  , inferTests
   ]
 
 

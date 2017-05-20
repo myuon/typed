@@ -7,9 +7,9 @@ import RecursiveTest
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  [ testGroup "UnAExp" aexpTests
+  [ testGroup "AExp" aexpTests
   , testGroup "Untyped" untypedTests
---  testGroup "Simply" simplyTests,
+  , testGroup "Simply" simplyTests
 --  testGroup "Mu" muTests,
 --  testGroup "Recursive" recursiveTests
   ]

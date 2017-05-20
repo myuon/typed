@@ -10,8 +10,7 @@ import Control.Monad
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
-
-type Syntax = T.Tree String
+import Init
 
 -- syntax tree
 
@@ -34,7 +33,7 @@ instance UVal Syntax where
 
 instance UExp Syntax where
   type Var Syntax = Int
-  uvar a = V $ show a
+  uvar = Pvar . show
   uapp = Papp
 
   uisVal (Pabs _) = True

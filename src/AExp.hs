@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,8 +11,7 @@ import Control.Monad
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
-
-type Syntax = T.Tree String
+import Init
 
 -- syntax tree
 
@@ -82,4 +83,50 @@ instance AEval Syntax AValue where
         AZero -> ATrue
         ASucc _ -> AFalse
     go exp = error $ "Not match any case: " ++ show exp
+
+-- types
+
+class AType typ where
+  bool :: typ
+  nat :: typ
+
+pattern Pbool = T.Node "bool" []
+pattern Pnat = T.Node "nat" []
+
+instance AType Syntax where
+  bool = Pbool
+  nat = Pnat
+
+terror :: (Show repr, Show typ) => repr -> typ -> typ -> a
+terror m exp act = error $ concat
+  [ "TypeError> "
+  , "`" ++ show m ++ "`"
+  , " : Expected "
+  , show exp
+  , " , Actual "
+  , show act
+  ]
+
+class (Show repr, Show typ, AExp repr, AType typ) => AInfer repr typ where
+  inferA :: repr -> typ
+
+  typcheckA :: Eq typ => repr -> typ -> typ
+  typcheckA exp typ =
+    let te = inferA exp in
+    case te == typ of
+      True -> typ
+      False -> terror exp typ te
+
+instance AInfer Syntax Syntax where
+  inferA Ptrue = bool
+  inferA Pfalse = bool
+  inferA (Pif b exp1 exp2) =
+    let tb = typcheckA b Pbool in
+    let t1 = inferA @Syntax @Syntax exp1 in
+    typcheckA exp2 t1
+  inferA Pzero = nat
+  inferA (Psucc exp) = typcheckA exp Pnat
+  inferA (Ppred exp) = typcheckA exp Pnat
+  inferA (PisZero exp) = let Pnat = typcheckA exp Pnat in Pbool
+
 
