@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     AExp, Untyped, Simply, Mu, Recursive
+  exposed-modules:     AExp, Untyped, Simply, SimplyExt, Mu, Recursive
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens

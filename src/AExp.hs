@@ -128,5 +128,6 @@ instance AInfer Syntax Syntax where
   inferA (Psucc exp) = typcheckA exp Pnat
   inferA (Ppred exp) = typcheckA exp Pnat
   inferA (PisZero exp) = let Pnat = typcheckA exp Pnat in Pbool
+  inferA z = error $ "Unexpected syntax tree: " ++ show z
 
 
