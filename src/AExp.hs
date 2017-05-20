@@ -97,36 +97,36 @@ instance AType Syntax where
   bool = Pbool
   nat = Pnat
 
+terror :: (Show repr, Show typ) => repr -> typ -> typ -> a
+terror m exp act = error $ concat
+  [ "TypeError> "
+  , "`" ++ show m ++ "`"
+  , " : Expected "
+  , show exp
+  , " , Actual "
+  , show act
+  ]
+
 class (Show repr, Show typ, AExp repr, AType typ) => AInfer repr typ where
-  infer :: repr -> typ
-  typcheck :: repr -> typ -> typ
+  inferA :: repr -> typ
 
-  terror :: repr -> typ -> typ -> a
-  terror m exp act = error $ concat
-    [ "TypeError> "
-    , "`" ++ show m ++ "`"
-    , " : Expected "
-    , show exp
-    , " , Actual "
-    , show act
-    ]
-
-instance AInfer Syntax Syntax where
-  infer Ptrue = bool
-  infer Pfalse = bool
-  infer (Pif b exp1 exp2) =
-    let tb = typcheck b Pbool in
-    let t1 = infer @Syntax @Syntax exp1 in
-    typcheck exp2 t1
-  infer Pzero = nat
-  infer (Psucc exp) = typcheck exp Pnat
-  infer (Ppred exp) = typcheck exp Pnat
-  infer (PisZero exp) = let Pnat = typcheck exp Pnat in Pbool
-
-  typcheck exp typ =
-    let te = infer exp in
+  typcheckA :: Eq typ => repr -> typ -> typ
+  typcheckA exp typ =
+    let te = inferA exp in
     case te == typ of
       True -> typ
       False -> terror exp typ te
+
+instance AInfer Syntax Syntax where
+  inferA Ptrue = bool
+  inferA Pfalse = bool
+  inferA (Pif b exp1 exp2) =
+    let tb = typcheckA b Pbool in
+    let t1 = inferA @Syntax @Syntax exp1 in
+    typcheckA exp2 t1
+  inferA Pzero = nat
+  inferA (Psucc exp) = typcheckA exp Pnat
+  inferA (Ppred exp) = typcheckA exp Pnat
+  inferA (PisZero exp) = let Pnat = typcheckA exp Pnat in Pbool
 
 
