@@ -21,15 +21,19 @@ class (SpType typ) => SpExtType typ where
   baseA :: typ
   unit :: typ
   tuple :: typ -> typ -> typ
+  record :: [(String, typ)] -> typ
 
 pattern PbaseA = T.Node "A" []
 pattern Punit = T.Node "Unit" []
 pattern Ptuple exp1 exp2 = T.Node "tuple" [exp1, exp2]
+pattern Precord es = T.Node "record" es
+pattern Precord_at label x = T.Node label [x]
 
 instance SpExtType Syntax where
   baseA = PbaseA
   unit = Punit
   tuple = Ptuple
+  record m = Precord $ fmap (\(l,x) -> Precord_at l x) m
 
 --
 
@@ -41,6 +45,8 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   pair :: repr -> repr -> repr
   _1 :: repr -> repr
   _2 :: repr -> repr
+  fields :: [(String, repr)] -> repr
+  proj_label :: String -> repr -> repr
 
 pattern Pstar = T.Node "*" []
 pattern Pseq exp1 exp2 = T.Node "##" [exp1, exp2]
@@ -49,6 +55,9 @@ pattern Pletin v exp1 exp2 = T.Node "let" [V v, exp1, exp2]
 pattern Ppair exp1 exp2 = T.Node "pair" [exp1, exp2]
 pattern P_1 exp = T.Node "_1" [exp]
 pattern P_2 exp = T.Node "_2" [exp]
+pattern Pfields es = T.Node "fields" es
+pattern Pfield_at label x = T.Node label [x]
+pattern Pproj_label label exp = T.Node "proj_label" [T.Node label [], exp]
 
 instance SpExtExp Int Syntax Syntax where
   star = Pstar
@@ -58,6 +67,8 @@ instance SpExtExp Int Syntax Syntax where
   pair = Ppair
   _1 = P_1
   _2 = P_2
+  fields ms = Pfields $ fmap (\(l,x) -> Pfield_at l x) ms
+  proj_label = Pproj_label
 
 --
 
@@ -88,4 +99,12 @@ instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) whe
     go ctx =
       let Ptuple _ ty2 = typeof exp ctx in
       ty2
+  fields es = Tagged go where
+    go ctx =
+      let tys = fmap (\(_,x) -> typeof x ctx) es in
+      record $ zip (fmap fst es) tys
+  proj_label label rc = Tagged go where
+    go ctx =
+      let Precord tys = typeof rc ctx in
+      snd $ head $ filter (\x -> fst x == label) $ fmap (\(Pfield_at l x) -> (l,x)) tys
 

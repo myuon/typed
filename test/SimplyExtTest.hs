@@ -31,6 +31,12 @@ typeofTests = testGroup "typeof"
     typeof @"typecheck" @(Context Syntax -> Syntax) (_1 (pair azero atrue)) M.empty @?= nat
   , testCase "|- snd (pair 0 true) : bool" $
     typeof @"typecheck" @(Context Syntax -> Syntax) (_2 (pair azero atrue)) M.empty @?= bool
+  , testCase "|- {x = 0, y = true} : {x: nat, y: bool}" $
+    typeof @"typecheck" @(Context Syntax -> Syntax) (fields [("x", azero), ("y", atrue)]) M.empty @?= record [("x", nat), ("y", bool)]
+  , testCase "|- {x = 0, y = true}.x : nat" $
+    typeof @"typecheck" @(Context Syntax -> Syntax) (proj_label "x" $ fields [("x", azero), ("y", atrue)]) M.empty @?= nat
+  , testCase "|- {x = 0, y = true}.y : bool" $
+    typeof @"typecheck" @(Context Syntax -> Syntax) (proj_label "y" $ fields [("x", azero), ("y", atrue)]) M.empty @?= bool
   ]
 
 simplyExtTests =
