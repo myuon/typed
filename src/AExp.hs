@@ -11,8 +11,7 @@ import Control.Monad
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
-
-type Syntax = T.Tree String
+import Init
 
 -- syntax tree
 

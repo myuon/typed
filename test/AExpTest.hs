@@ -3,6 +3,7 @@ module AExpTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import Init
 import AExp
 
 aevalTests = testGroup "aeval" $
