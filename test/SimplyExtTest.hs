@@ -20,6 +20,8 @@ typeofTests = testGroup "typeof"
     typeof @(Context Syntax -> Syntax) (sabs 0 (baseA `arrow` unit) (sabs 1 baseA ((svar 0 `sapp` svar 1) ## svar 0))) M.empty @?= (baseA `arrow` unit) `arrow` (baseA `arrow` (baseA `arrow` unit))
   , testCase "|- * as unit : unit" $
     typeof @(Context Syntax -> Syntax) (star `typeAs` unit) M.empty @?= unit
+  , testCase "|- λ(1:A). let 0 = λ(2:A). 2 in 0 1 : A -> A" $
+    typeof @(Context Syntax -> Syntax) (sabs 1 baseA (letin 0 (sabs 2 baseA (svar 2)) (svar 0 `sapp` svar 1))) M.empty @?= baseA `arrow` baseA
   ]
 
 simplyExtTests =
