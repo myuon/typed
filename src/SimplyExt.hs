@@ -23,6 +23,7 @@ class (SpType typ) => SpExtType typ where
   record :: [(String, typ)] -> typ
   coprod :: typ -> typ -> typ
   variant :: [(String, typ)] -> typ
+  list :: typ -> typ
 
 pattern PbaseA = T.Node "A" []
 pattern Punit = T.Node "Unit" []
@@ -31,6 +32,7 @@ pattern Precord es = T.Node "record" es
 pattern Precord_at label x = T.Node label [x]
 pattern Pcoprod exp1 exp2 = T.Node "sum" [exp1, exp2]
 pattern Pvariant es = T.Node "variant" es
+pattern Plist x = T.Node "list" [x]
 
 instance SpExtType Syntax where
   baseA = PbaseA
@@ -39,6 +41,7 @@ instance SpExtType Syntax where
   record m = Precord $ fmap (\(l,x) -> Precord_at l x) m
   coprod = Pcoprod
   variant m = Pvariant $ fmap (\(l,x) -> Precord_at l x) m
+  list = Plist
 
 --
 
@@ -58,6 +61,11 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   tagging :: String -> repr -> typ -> repr
   case_variant :: repr -> [(String, var, repr)] -> repr
   fixpoint :: repr -> repr
+  nil_as :: typ -> repr
+  cons_as :: typ -> repr -> repr -> repr
+  isnil_as :: typ -> repr -> repr
+  head_as :: typ -> repr -> repr
+  tail_as :: typ -> repr -> repr
 
 pattern Pstar = T.Node "*" []
 pattern Pseq exp1 exp2 = T.Node "##" [exp1, exp2]
@@ -75,6 +83,11 @@ pattern Pcase_coprod exp x expL y expR = T.Node "case_coprod" [exp, V x, expL, V
 pattern Ptagging label exp typ = T.Node "tagging" [T.Node label [], exp, typ]
 pattern Pcase_variant exp cases = T.Node "case_variant" [exp, T.Node "cases" cases]
 pattern Pfix exp = T.Node "fix" [exp]
+pattern Pnil_as ty = T.Node "nil" [ty]
+pattern Pcons_as ty exp1 exp2 = T.Node "cons" [ty, exp1, exp2]
+pattern Pisnil_as ty exp = T.Node "isnil" [ty, exp]
+pattern Phead_as ty exp = T.Node "head" [ty, exp]
+pattern Ptail_as ty exp = T.Node "tail" [ty, exp]
 
 instance SpExtExp Int Syntax Syntax where
   star = Pstar
@@ -92,6 +105,11 @@ instance SpExtExp Int Syntax Syntax where
   tagging = Ptagging
   case_variant exp cases = Pcase_variant exp $ fmap (\(label,v,r) -> T.Node label [V $ show v,r]) cases
   fixpoint = Pfix
+  nil_as = Pnil_as
+  cons_as = Pcons_as
+  isnil_as = Pisnil_as
+  head_as = Phead_as
+  tail_as = Ptail_as
 
 --
 
@@ -162,4 +180,17 @@ instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) whe
       let Parrow ty1 ty2 = typeof exp ctx in
       if ty1 == ty2 then ty1
       else error "at fixpoint"
-
+  nil_as typ = Tagged go where
+    go ctx = list typ
+  cons_as typ exp1 exp2 = Tagged go where
+    go ctx =
+      seq (typecheck (($ ctx) <$> exp1) typ) $
+      typecheck (($ ctx) <$> exp2) (list typ)
+  isnil_as typ exp = Tagged go where
+    go ctx =
+      seq (typecheck (($ ctx) <$> exp) (list typ)) bool
+  head_as typ exp = Tagged go where
+    go ctx =
+      seq (typecheck (($ ctx) <$> exp) (list typ)) typ
+  tail_as typ exp = Tagged go where
+    go ctx = typecheck (($ ctx) <$> exp) (list typ)

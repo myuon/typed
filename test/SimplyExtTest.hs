@@ -40,6 +40,8 @@ typeofTests = testGroup "typeof"
     typeof @"typecheck" @(Context Syntax -> Syntax) (inL_as (asucc azero) (nat `coprod` bool)) M.empty @?= nat `coprod` bool
   , testCase "|- fix(λ(0:nat). succ 0) : nat" $
     typeof @"typecheck" @(Context Syntax -> Syntax) (fixpoint $ sabs 0 nat (asucc (svar 0))) M.empty @?= nat
+  , testCase "|- cons[nat] 1 (cons[nat] 2 (cons[nat] 3 nil[nat])) : list nat" $
+    typeof @"typecheck" @(Context Syntax -> Syntax) (cons_as nat (asucc azero) $ cons_as nat (asucc (asucc azero)) $ cons_as nat (asucc (asucc (asucc azero))) $ nil_as nat) M.empty @?= list nat
   ]
 
 enumerationTest = testGroup "enumeration"
