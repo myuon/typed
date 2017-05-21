@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -11,6 +12,7 @@
 module Simply where
 
 import Control.Monad
+import Data.Tagged
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Map as M
@@ -19,7 +21,7 @@ import Init
 import AExp
 import Untyped hiding (Var)
 
--- simple types
+-- simply typed
 
 class (AType typ) => SpType typ where
   arrow :: typ -> typ -> typ
@@ -35,9 +37,8 @@ data Binding typ = VarBind (SpType typ => typ)
 instance (Show typ, SpType typ) => Show (Binding typ) where
   show (VarBind t) = show t
 
-type Context = M.Map String (Binding Syntax)
+type Context a = M.Map Int (Binding a)
 
-(.:) :: (String, Binding Syntax) -> M.Map String (Binding Syntax) -> M.Map String (Binding Syntax)
 (x,bind) .: gs = M.insert x bind gs
 
 -- terms
@@ -56,31 +57,21 @@ instance SpExp Int Syntax Syntax where
 
 -- type inference
 
-class (Show repr, Show typ, SpExp var typ repr, SpType typ) => SpInfer var typ repr where
-  inferSp :: Context -> repr -> typ
-
-  typcheckSp :: Eq typ => Context -> repr -> typ -> typ
-  typcheckSp ctx exp typ =
-    let te = inferSp ctx exp in
-    case te == typ of
-      True -> typ
-      False -> terror exp typ te
-
-instance SpInfer Int Syntax Syntax where
-  inferSp ctx = go where
-    go (Pvar v)
+instance SpExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) where
+  svar v = Tagged go where
+    go ctx
       | M.member v ctx =
-        case ctx M.! v of
-          VarBind b -> b
+        case ctx M.! v of VarBind b -> b
       | otherwise = error $ "Not found " ++ show v ++ " in " ++ show ctx
-    go (PabsT v ty exp) =
+  sabs v ty exp = Tagged go where
+    go ctx =
       let ctx' = (v, VarBind ty) .: ctx in
-      let ty' = inferSp ctx' exp in
+      let ty' = typeof exp ctx' in
       arrow ty ty'
-    go (Papp exp1 exp2) =
-      let ty1 = inferSp ctx exp1 in
-      let ty2 = inferSp ctx exp2 in
+  sapp exp1 exp2 = Tagged go where
+    go ctx =
+      let ty1 = typeof exp1 ctx in
+      let ty2 = typeof exp2 ctx in
       case ty1 of
         (Parrow ty11 ty12) | ty2 == ty11 -> ty12
-        t -> terror exp1 ty2 ty1
-    go exp = inferA exp
+        t -> terror (unTagged exp1 ctx) ty2 ty1
