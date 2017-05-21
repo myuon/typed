@@ -42,6 +42,8 @@ terror m exp act = m >>= \m' -> throwM $ TypeMismatch (show m') exp act
 typeof :: Context Syntax -> Typecheck m -> m Syntax
 typeof ctx m = unTagged m ctx
 
+typeof' = typeof M.empty
+
 typecheck :: (MonadThrow m) => Context Syntax -> Typecheck m -> Syntax -> m Syntax
 typecheck ctx exp typ = do
   te <- typeof ctx exp

@@ -181,7 +181,7 @@ instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
           if Pfield_at label tyl `elem` vs
             then return $ Pvariant vs
             else terror (unTagged exp ctx) (show tyl) (show $ Pvariant [wild])
-        z -> throwM $ show ty `Should` show z
+        z -> terror (unTagged exp ctx) (show $ Pvariant [wild]) (show z)
   case_variant exp vs = Tagged go where
     go ctx =
       typeof ctx exp >>=
