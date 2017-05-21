@@ -38,6 +38,8 @@ typeofTests = testGroup "typeof"
     typeof @"typecheck" @(Context Syntax -> Syntax) (proj_label "y" $ fields [("x", azero), ("y", atrue)]) M.empty @?= bool
   , testCase "|- inL 1 as nat + bool : nat + bool" $
     typeof @"typecheck" @(Context Syntax -> Syntax) (inL_as (asucc azero) (nat `coprod` bool)) M.empty @?= nat `coprod` bool
+  , testCase "|- fix(λ(0:nat). succ 0) : nat" $
+    typeof @"typecheck" @(Context Syntax -> Syntax) (fixpoint $ sabs 0 nat (asucc (svar 0))) M.empty @?= nat
   ]
 
 enumerationTest = testGroup "enumeration"

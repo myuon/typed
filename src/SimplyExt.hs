@@ -57,6 +57,7 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   case_coprod :: repr -> var -> repr -> var -> repr -> repr
   tagging :: String -> repr -> typ -> repr
   case_variant :: repr -> [(String, var, repr)] -> repr
+  fixpoint :: repr -> repr
 
 pattern Pstar = T.Node "*" []
 pattern Pseq exp1 exp2 = T.Node "##" [exp1, exp2]
@@ -73,6 +74,7 @@ pattern PinR_as exp ty = T.Node "inR_as" [exp, ty]
 pattern Pcase_coprod exp x expL y expR = T.Node "case_coprod" [exp, V x, expL, V y, expR]
 pattern Ptagging label exp typ = T.Node "tagging" [T.Node label [], exp, typ]
 pattern Pcase_variant exp cases = T.Node "case_variant" [exp, T.Node "cases" cases]
+pattern Pfix exp = T.Node "fix" [exp]
 
 instance SpExtExp Int Syntax Syntax where
   star = Pstar
@@ -89,6 +91,7 @@ instance SpExtExp Int Syntax Syntax where
   case_coprod exp x expL y expR = Pcase_coprod exp (show x) expL (show y) expR
   tagging = Ptagging
   case_variant exp cases = Pcase_variant exp $ fmap (\(label,v,r) -> T.Node label [V $ show v,r]) cases
+  fixpoint = Pfix
 
 --
 
@@ -154,5 +157,9 @@ instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) whe
       let tys = fmap (\(l,v,r) -> typeof r ((v, VarBind $ (\(_,_,t) -> unTagged t ctx) $ head $ filter (\(l',_,_) -> l == l') $ vs) .: ctx)) vs in
       if length (nub tys) == 1 then head tys
       else error "at case_variant"
-
+  fixpoint exp = Tagged go where
+    go ctx =
+      let Parrow ty1 ty2 = typeof exp ctx in
+      if ty1 == ty2 then ty1
+      else error "at fixpoint"
 
