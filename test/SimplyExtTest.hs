@@ -12,8 +12,7 @@ import Simply
 import SimplyExt
 
 typeofTests = testGroup "typeof"
-  [
-    testCase "|- λ0:A. 0 : A -> A" $
+  [ testCase "|- λ0:A. 0 : A -> A" $
     typeof @"typecheck" @(Context Syntax -> Syntax) (sabs 0 baseA (svar 0)) M.empty @?= baseA `arrow` baseA
   , testCase "|- λ0:(A -> A). λ1:A. 0 1 : (A -> A) -> A -> A" $
     typeof @"typecheck" @(Context Syntax -> Syntax) (sabs 0 (baseA `arrow` baseA) (sabs 1 baseA (svar 0 `sapp` svar 1))) M.empty @?= (baseA `arrow` baseA) `arrow` (baseA `arrow` baseA)
@@ -41,6 +40,27 @@ typeofTests = testGroup "typeof"
     typeof @"typecheck" @(Context Syntax -> Syntax) (inL_as (asucc azero) (nat `coprod` bool)) M.empty @?= nat `coprod` bool
   ]
 
+enumerationTest = testGroup "enumeration"
+  [ let weekday =
+           variant [ ("monday", unit)
+                   , ("tuesday", unit)
+                   , ("wednesday", unit)
+                   , ("thursday", unit)
+                   , ("friday", unit)
+                   ] in
+    testCase "nextBusinessDay" $
+    typeof @"typecheck" @(Context Syntax -> Syntax)
+    (sabs 0 weekday $ case_variant (svar 0)
+      [ ("monday", 1, tagging "tuesday" star weekday)
+      , ("tuesday", 1, tagging "wednesday" star weekday)
+      , ("wednesday", 1, tagging "thursday" star weekday)
+      , ("thursday", 1, tagging "friday" star weekday)
+      , ("friday", 1, tagging "monday" star weekday)
+      ]
+    ) M.empty @?= weekday `arrow` weekday
+  ]
+
 simplyExtTests =
   [ typeofTests
+  , enumerationTest
   ]

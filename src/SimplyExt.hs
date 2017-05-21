@@ -8,10 +8,9 @@ module SimplyExt where
 import Control.Monad
 import Data.Tagged
 import GHC.TypeLits
-import qualified Data.Foldable as F
+import Data.List (nub)
 import qualified Data.Tree as T
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Init
 import AExp
 import Untyped hiding (Var)
@@ -23,6 +22,7 @@ class (SpType typ) => SpExtType typ where
   tuple :: typ -> typ -> typ
   record :: [(String, typ)] -> typ
   coprod :: typ -> typ -> typ
+  variant :: [(String, typ)] -> typ
 
 pattern PbaseA = T.Node "A" []
 pattern Punit = T.Node "Unit" []
@@ -30,6 +30,7 @@ pattern Ptuple exp1 exp2 = T.Node "tuple" [exp1, exp2]
 pattern Precord es = T.Node "record" es
 pattern Precord_at label x = T.Node label [x]
 pattern Pcoprod exp1 exp2 = T.Node "sum" [exp1, exp2]
+pattern Pvariant es = T.Node "variant" es
 
 instance SpExtType Syntax where
   baseA = PbaseA
@@ -37,6 +38,7 @@ instance SpExtType Syntax where
   tuple = Ptuple
   record m = Precord $ fmap (\(l,x) -> Precord_at l x) m
   coprod = Pcoprod
+  variant m = Pvariant $ fmap (\(l,x) -> Precord_at l x) m
 
 --
 
@@ -53,6 +55,8 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   inL_as :: repr -> typ -> repr
   inR_as :: repr -> typ -> repr
   case_coprod :: repr -> var -> repr -> var -> repr -> repr
+  tagging :: String -> repr -> typ -> repr
+  case_variant :: repr -> [(String, var, repr)] -> repr
 
 pattern Pstar = T.Node "*" []
 pattern Pseq exp1 exp2 = T.Node "##" [exp1, exp2]
@@ -67,6 +71,8 @@ pattern Pproj_label label exp = T.Node "proj_label" [T.Node label [], exp]
 pattern PinL_as exp ty = T.Node "inL_as" [exp, ty]
 pattern PinR_as exp ty = T.Node "inR_as" [exp, ty]
 pattern Pcase_coprod exp x expL y expR = T.Node "case_coprod" [exp, V x, expL, V y, expR]
+pattern Ptagging label exp typ = T.Node "tagging" [T.Node label [], exp, typ]
+pattern Pcase_variant exp cases = T.Node "case_variant" [exp, T.Node "cases" cases]
 
 instance SpExtExp Int Syntax Syntax where
   star = Pstar
@@ -81,6 +87,8 @@ instance SpExtExp Int Syntax Syntax where
   inL_as = PinL_as
   inR_as = PinR_as
   case_coprod exp x expL y expR = Pcase_coprod exp (show x) expL (show y) expR
+  tagging = Ptagging
+  case_variant exp cases = Pcase_variant exp $ fmap (\(label,v,r) -> T.Node label [V $ show v,r]) cases
 
 --
 
@@ -134,4 +142,17 @@ instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) whe
       let Pcoprod ty1 ty2 = typeof exp ctx in
       let ty = typeof expL ((x, VarBind ty1) .: ctx) in
       typecheck (($ ctx) <$> expR) ty
+  tagging label exp ty = Tagged go where
+    go ctx =
+      let tyl = typeof exp ctx in
+      let Pvariant vs = ty in
+      if (label,tyl) `elem` fmap (\(Pfield_at l x) -> (l,x)) vs
+      then Pvariant vs
+      else terror (($ ctx) <$> exp) tyl (Pvariant vs)
+  case_variant exp vs = Tagged go where
+    go ctx =
+      let tys = fmap (\(l,v,r) -> typeof r ((v, VarBind $ (\(_,_,t) -> unTagged t ctx) $ head $ filter (\(l',_,_) -> l == l') $ vs) .: ctx)) vs in
+      if length (nub tys) == 1 then head tys
+      else error "at case_variant"
+
 
