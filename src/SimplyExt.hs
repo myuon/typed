@@ -1,14 +1,13 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
 module SimplyExt where
 
 import Control.Monad
+import Control.Monad.Catch
 import Data.Tagged
-import GHC.TypeLits
-import Data.List (nub)
+import Data.List (elemIndex, nub, lookup)
 import qualified Data.Tree as T
 import qualified Data.Map as M
 import Init
@@ -113,84 +112,104 @@ instance SpExtExp Int Syntax Syntax where
 
 --
 
-instance SpExtExp Int Syntax (Tagged "typecheck" (Context Syntax -> Syntax)) where
-  star = Tagged $ \_ -> unit
+instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
+  star = Tagged $ \_ -> return unit
   exp1 ## exp2 = Tagged go where
-    go ctx =
-      let Punit = typeof exp1 ctx in
-      typeof exp2 ctx
+    go ctx = seq (typecheck ctx exp1 unit) $ typeof ctx exp2
   typeAs exp ty = Tagged go where
-    go ctx =
-      case typeof exp ctx of
-        z | z == ty -> ty
+    go ctx = typecheck ctx exp ty
   letin v exp1 exp2 = Tagged go where
-    go ctx =
-      let typ1 = typeof exp1 ctx in
-      typeof exp2 ((v , VarBind typ1) .: ctx)
+    go ctx = do
+      typ1 <- typeof ctx exp1
+      typeof ((v , VarBind typ1) .: ctx) exp2
   pair exp1 exp2 = Tagged go where
-    go ctx =
-      let ty1 = typeof exp1 ctx in
-      let ty2 = typeof exp2 ctx in
-      tuple ty1 ty2
+    go ctx = do
+      ty1 <- typeof ctx exp1
+      ty2 <- typeof ctx exp2
+      return $ tuple ty1 ty2
   _1 exp = Tagged go where
-    go ctx =
-      let Ptuple ty1 _ = typeof exp ctx in
-      ty1
+    go ctx = do
+      ty' <- typeof ctx exp
+      case ty' of
+        Ptuple ty1 _ -> return ty1
+        z -> terror (unTagged exp ctx) (show $ Ptuple wild wild) (show z)
   _2 exp = Tagged go where
-    go ctx =
-      let Ptuple _ ty2 = typeof exp ctx in
-      ty2
+    go ctx = do
+      ty' <- typeof ctx exp
+      case ty' of
+        Ptuple _ ty2 -> return ty2
+        z -> terror (unTagged exp ctx) (show $ Ptuple wild wild) (show z)
   fields es = Tagged go where
-    go ctx =
-      let tys = fmap (\(_,x) -> typeof x ctx) es in
-      record $ zip (fmap fst es) tys
+    go ctx = do
+      let labels = fmap fst es
+      typs <- mapM (typeof ctx) $ fmap snd es
+      return $ record $ zip labels typs
   proj_label label rc = Tagged go where
     go ctx =
-      let Precord tys = typeof rc ctx in
-      snd $ head $ filter (\x -> fst x == label) $ fmap (\(Pfield_at l x) -> (l,x)) tys
+      typeof ctx rc >>=
+      \case
+        Precord tys ->
+          case elemIndex label (fmap (\(Pfield_at l _) -> l) tys) of
+            Just n -> return $ (\(Pfield_at _ x) -> x) $ tys !! n
+            Nothing -> throwM $ (show $ Precord tys) `Should` ("contain " ++ label)
+        z -> terror (unTagged rc ctx) (show $ Precord [wild]) (show z)
   inL_as exp ty = Tagged go where
-    go ctx =
-      let tyL = typeof exp ctx in
+    go ctx = do
+      tyL <- typeof ctx exp
       case ty of
-        Pcoprod ty1 ty2 | ty1 == tyL -> coprod ty1 ty2
+        Pcoprod ty1 ty2 | ty1 == tyL -> return $ coprod ty1 ty2
+        z -> terror (unTagged exp ctx) (show $ coprod tyL wild) (show z)
   inR_as exp ty = Tagged go where
-    go ctx =
-      let tyR = typeof exp ctx in
+    go ctx = do
+      tyR <- typeof ctx exp
       case ty of
-        Pcoprod ty1 ty2 | ty2 == tyR -> coprod ty1 ty2
+        Pcoprod ty1 ty2 | ty2 == tyR -> return $ coprod ty1 ty2
+        z -> terror (unTagged exp ctx) (show $ coprod wild tyR) (show z)
   case_coprod exp x expL y expR = Tagged go where
     go ctx =
-      let Pcoprod ty1 ty2 = typeof exp ctx in
-      let ty = typeof expL ((x, VarBind ty1) .: ctx) in
-      typecheck (($ ctx) <$> expR) ty
+      typeof ctx exp >>=
+      \case
+        Pcoprod ty1 ty2 -> do
+          tyL <- typeof ((x, VarBind ty1) .: ctx) expL
+          typecheck ((y, VarBind ty2) .: ctx) expR tyL
+        z -> terror (unTagged exp ctx) (show $ Pcoprod wild wild) (show z)
   tagging label exp ty = Tagged go where
     go ctx =
-      let tyl = typeof exp ctx in
-      let Pvariant vs = ty in
-      if (label,tyl) `elem` fmap (\(Pfield_at l x) -> (l,x)) vs
-      then Pvariant vs
-      else terror (($ ctx) <$> exp) tyl (Pvariant vs)
+      case ty of
+        Pvariant vs -> do
+          tyl <- typeof ctx exp
+          if Pfield_at label tyl `elem` vs
+            then return $ Pvariant vs
+            else terror (unTagged exp ctx) (show tyl) (show $ Pvariant [wild])
+        z -> throwM $ show ty `Should` show z
   case_variant exp vs = Tagged go where
     go ctx =
-      let tys = fmap (\(l,v,r) -> typeof r ((v, VarBind $ (\(_,_,t) -> unTagged t ctx) $ head $ filter (\(l',_,_) -> l == l') $ vs) .: ctx)) vs in
-      if length (nub tys) == 1 then head tys
-      else error "at case_variant"
+      typeof ctx exp >>=
+      \case
+        Pvariant vs' | fmap (\(T.Node l _) -> l) vs' == fmap (\(l,_,_) -> l) vs -> do
+          tys <- mapM (\(label,v,r) -> typeof ((v, VarBind $ (\(Just x) -> x) $ lookup label $ fmap (\(Precord_at l x) -> (l,x)) vs') .: ctx) r) vs
+          case nub tys of
+            [x] -> return x
+            z -> throwM $ show (fmap (\(l,v,x) -> (l,v,Pstar)) vs) `Should` ("have same codomain, but " ++ show z)
+        z -> terror (unTagged exp ctx) (show $ fmap (\(l,_,_) -> T.Node l []) vs) (show z)
   fixpoint exp = Tagged go where
     go ctx =
-      let Parrow ty1 ty2 = typeof exp ctx in
-      if ty1 == ty2 then ty1
-      else error "at fixpoint"
+      typeof ctx exp >>=
+      \case
+        Parrow ty1 ty2 | ty1 == ty2 -> return ty1
+        Parrow ty1 ty2 -> terror (unTagged exp ctx) (show $ arrow ty1 ty1) (show $ arrow ty1 ty2)
+        z -> terror (unTagged exp ctx) (show $ Parrow wild wild) (show z)
   nil_as typ = Tagged go where
-    go ctx = list typ
+    go ctx = return $ list typ
   cons_as typ exp1 exp2 = Tagged go where
     go ctx =
-      seq (typecheck (($ ctx) <$> exp1) typ) $
-      typecheck (($ ctx) <$> exp2) (list typ)
+      seq (typecheck ctx exp1 typ) $
+      typecheck ctx exp2 (list typ)
   isnil_as typ exp = Tagged go where
     go ctx =
-      seq (typecheck (($ ctx) <$> exp) (list typ)) bool
+      seq (typecheck ctx exp (list typ)) $ return bool
   head_as typ exp = Tagged go where
     go ctx =
-      seq (typecheck (($ ctx) <$> exp) (list typ)) typ
+      seq (typecheck ctx exp (list typ)) $ return typ
   tail_as typ exp = Tagged go where
-    go ctx = typecheck (($ ctx) <$> exp) (list typ)
+    go ctx = typecheck ctx exp (list typ)
