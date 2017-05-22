@@ -151,7 +151,7 @@ instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
         Precord tys ->
           case elemIndex label (fmap (\(Pfield_at l _) -> l) tys) of
             Just n -> return $ (\(Pfield_at _ x) -> x) $ tys !! n
-            Nothing -> throwM $ (show $ Precord tys) `Should` ("contain " ++ label)
+            Nothing -> throwM' $ (show $ Precord tys) `should` ("contain " ++ label)
         z -> terror (unTagged rc ctx) (show $ Precord [wild]) (show z)
   inL_as exp ty = Tagged go where
     go ctx = do
@@ -190,7 +190,7 @@ instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
           tys <- mapM (\(label,v,r) -> typeof ((v, VarBind $ (\(Just x) -> x) $ lookup label $ fmap (\(Precord_at l x) -> (l,x)) vs') .: ctx) r) vs
           case nub tys of
             [x] -> return x
-            z -> throwM $ show (fmap (\(l,v,x) -> (l,v,Pstar)) vs) `Should` ("have same codomain, but " ++ show z)
+            z -> throwM' $ show (fmap (\(l,v,x) -> (l,v,Pstar)) vs) `should` ("have same codomain, but " ++ show z)
         z -> terror (unTagged exp ctx) (show $ fmap (\(l,_,_) -> T.Node l []) vs) (show z)
   fixpoint exp = Tagged go where
     go ctx =

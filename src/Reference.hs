@@ -50,7 +50,7 @@ instance MonadThrow m => SpExp Int Syntax (RefTypecheck m) where
     go ctx sto
       | M.member v ctx =
         case ctx M.! v of VarBind b -> return b
-      | otherwise = throwM $ NotInContext (show v) ctx
+      | otherwise = throwM' $ notInContext (show v) ctx
   sabs v ty exp = Tagged go where
     go ctx sto = do
       let ctx' = (v, VarBind ty) .: ctx
@@ -94,7 +94,7 @@ instance MonadThrow m => RefExp Int Syntax (RefTypecheck m) where
     go ctx sto =
       case M.member label sto of
         True -> return $ reftype $ sto M.! label
-        False -> throwM $ NotInStore label sto
+        False -> throwM' $ notInStore label sto
   ref exp = Tagged go where
     go ctx sto = reftype <$> reftypeof ctx sto exp
   deref exp = Tagged go where

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 module Init where
@@ -28,17 +29,23 @@ type Context a = M.Map Int (Binding a)
 type Csyn m = Context Syntax -> m Syntax
 type Typecheck m = Tagged "typecheck" (Csyn m)
 
-data ErrorMsg
-  = NotInContext String (Context Syntax)
-  | NotInStore String (Store Syntax)
-  | TypeMismatch String String String
-  | Should String String
-  deriving (Show, Typeable)
+instance Exception (T.Tree String)
 
-instance Exception ErrorMsg
+class ErrorMsg err where
+  should :: String -> String -> err
+
+instance ErrorMsg (T.Tree String) where
+  should a b = T.Node "should" [T.Node a [], T.Node b []]
+
+class ErrorMsg err => ErrorMsgContext err where
+  notInContext :: String -> Context Syntax -> err
+  typeMismatch :: String -> String -> String -> err
+
+throwM' :: (MonadThrow m) => T.Tree String -> m a
+throwM' = throwM
 
 terror :: (MonadThrow m) => m Syntax -> String -> String -> m a
-terror m exp act = m >>= \m' -> throwM $ TypeMismatch (show m') exp act
+terror m exp act = m >>= \m' -> throwM' $ typeMismatch (show m') exp act
 
 typeof :: Context Syntax -> Typecheck m -> m Syntax
 typeof ctx m = unTagged m ctx
@@ -57,6 +64,16 @@ type Store a = M.Map String a
 
 type Rsyn m = Context Syntax -> Store Syntax -> m Syntax
 type RefTypecheck m = Tagged "reftypecheck" (Rsyn m)
+
+instance ErrorMsgContext (T.Tree String) where
+  notInContext v ctx = T.Node "Not in Context" [T.Node v [], T.Node (show ctx) []]
+  typeMismatch term exp act = T.Node "TypeMismatch ... Expected: but Actual:" [T.Node term [], T.Node exp [], T.Node act []]
+
+class ErrorMsg err => ErrorMsgStore err where
+  notInStore :: String -> Store Syntax -> err
+
+instance ErrorMsgStore (T.Tree String) where
+  notInStore v ctx = T.Node "Not in Store" [T.Node v [], T.Node (show ctx) []]
 
 reftypeof :: Context Syntax -> Store Syntax -> RefTypecheck m -> m Syntax
 reftypeof ctx sto m = unTagged m ctx sto

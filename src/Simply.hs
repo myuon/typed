@@ -46,7 +46,7 @@ instance MonadThrow m => SpExp Int Syntax (Typecheck m) where
     go ctx
       | M.member v ctx =
         case ctx M.! v of VarBind b -> return b
-      | otherwise = throwM $ NotInContext (show v) ctx
+      | otherwise = throwM' $ notInContext (show v) ctx
   sabs v ty exp = Tagged go where
     go ctx = do
       let ctx' = (v, VarBind ty) .: ctx
