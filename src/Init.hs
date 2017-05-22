@@ -30,6 +30,7 @@ type Typecheck m = Tagged "typecheck" (Csyn m)
 
 data ErrorMsg
   = NotInContext String (Context Syntax)
+  | NotInStore String (Store Syntax)
   | TypeMismatch String String String
   | Should String String
   deriving (Show, Typeable)
@@ -50,4 +51,22 @@ typecheck ctx exp typ = do
   case te == typ of
     True -> return typ
     False -> terror (unTagged exp ctx) (show typ) (show te)
+
+-- stored type
+type Store a = M.Map String a
+
+type Rsyn m = Context Syntax -> Store Syntax -> m Syntax
+type RefTypecheck m = Tagged "reftypecheck" (Rsyn m)
+
+reftypeof :: Context Syntax -> Store Syntax -> RefTypecheck m -> m Syntax
+reftypeof ctx sto m = unTagged m ctx sto
+
+reftypeof' = reftypeof M.empty M.empty
+
+reftypecheck :: (MonadThrow m) => Context Syntax -> Store Syntax -> RefTypecheck m -> Syntax -> m Syntax
+reftypecheck ctx sto exp typ = do
+  te <- reftypeof ctx sto exp
+  case te == typ of
+    True -> return typ
+    False -> terror (unTagged exp ctx sto) (show typ) (show te)
 
