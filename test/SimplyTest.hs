@@ -18,6 +18,6 @@ typeofTests = testGroup "typeof"
     typeof' @"context" (sabs 0 (arrow bool bool) $ svar 0) @?= Just ((bool `arrow` bool) `arrow` (bool `arrow` bool))
   ]
   
-simplyTests =
+mainTests =
   [ typeofTests
   ]

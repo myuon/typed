@@ -28,7 +28,7 @@ typeofTests = testGroup "typeof" $
     $ typeof' @"context" (aisZero (asucc (asucc azero))) @?= Just Pbool
   ]
 
-aexpTests =
+mainTests =
   [ aevalTests
   , typeofTests
   ]

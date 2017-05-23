@@ -19,7 +19,7 @@ reftypeofTests = testGroup "reftypeof"
   , testCase "|- λ0:Ref (nat -> nat). λ1:nat. !0 1 : Ref (nat -> nat) -> nat -> nat" $ typeof @"store" M.empty (M.singleton "0" (nat `arrow` nat)) (sabs 0 (reftype $ nat `arrow` nat) $ sabs 1 nat $ (deref $ loc "0") `sapp` svar 1) @?= Just (reftype (nat `arrow` nat) `arrow` (nat `arrow` nat))
   ]
 
-referenceTests =
+mainTests =
   [ reftypeofTests
   ]
 

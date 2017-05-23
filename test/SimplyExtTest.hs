@@ -85,7 +85,7 @@ enumerationTest = testGroup "enumeration"
     ) @?= Just (weekday `arrow` weekday)
   ]
 
-simplyExtTests =
+mainTests =
   [ typeofTests
   , typeofFailTests
   , enumerationTest
