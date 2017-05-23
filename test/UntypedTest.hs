@@ -13,7 +13,7 @@ cbvTests = testGroup "cbv" $
     $ ueval @Int @Syntax (uabs (uvar 0 `uapp` uvar 0) `uapp` (uabs (uvar 0))) @?= (uabs (uvar 0))
   ]
 
-untypedTests =
+mainTests =
   [ cbvTests
   ]
 

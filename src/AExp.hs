@@ -1,20 +1,16 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 module AExp where
 
-import Control.Monad
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
 import Data.Tagged
+import Control.Monad
+import Control.Monad.Catch
 import GHC.TypeLits
 import Init
 
@@ -91,64 +87,30 @@ class AType typ where
   bool :: typ
   nat :: typ
 
+  -- for error message
+  wild :: typ
+
 pattern Pbool = T.Node "bool" []
 pattern Pnat = T.Node "nat" []
 
 instance AType Syntax where
   bool = Pbool
   nat = Pnat
+  wild = T.Node "_" []
 
-terror :: (Show repr, Show typ) => repr -> typ -> typ -> a
-terror m exp act = error $ concat
-  [ "TypeError> "
-  , "`" ++ show m ++ "`"
-  , " : Expected "
-  , show exp
-  , " , Actual "
-  , show act
-  ]
+instance (MonadThrow m) => AVal (ContextOf m) where
+  atrue = Tagged $ \_ -> return bool
+  afalse = Tagged $ \_ -> return bool
+  azero = Tagged $ \_ -> return nat
+  asucc m = Tagged $ \ctx -> typecheck @"context" ctx m nat
 
-typeof :: Tagged (s :: Symbol) typ -> typ
-typeof = unTagged
-
-typecheck :: (Show typ, Eq typ) => Tagged (s :: Symbol) typ -> typ -> typ
-typecheck exp typ =
-  let te = typeof exp in
-  case te == typ of
-    True -> typ
-    False -> terror exp typ te
-
-instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck_simpl" typ) where
-  atrue = Tagged bool
-  afalse = Tagged bool
-  azero = Tagged nat
-  asucc m = Tagged $ typecheck m nat
-
-instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck_simpl" typ) where
-  aif b exp1 exp2 =
-    let tb = typecheck b bool in
-    let t1 = typeof exp1 in
-    Tagged $ typecheck exp2 t1
-  apred exp = Tagged $ typecheck exp nat
-  aisZero exp =
-    case typecheck exp nat of
-      z | z == nat -> Tagged bool
-
-instance (AType typ, Show typ, Eq typ) => AVal (Tagged "typecheck" (r -> typ)) where
-  atrue = Tagged $ \_ -> bool
-  afalse = Tagged $ \_ -> bool
-  azero = Tagged $ \_ -> nat
-  asucc m = Tagged $ \r -> typecheck (($ r) <$> m) nat
-
-instance (AType typ, Show typ, Eq typ) => AExp (Tagged "typecheck" (r -> typ)) where
+instance (MonadThrow m) => AExp (ContextOf m) where
   aif b exp1 exp2 = Tagged go where
-    go ctx =
-      let tb = typecheck (($ ctx) <$> b) bool in
-      let t1 = typeof (($ ctx) <$> exp1) in
-      typecheck (($ ctx) <$> exp2) t1
-  apred exp = Tagged $ \r -> typecheck (($ r) <$> exp) nat
+    go ctx = do
+      tb <- typecheck @"context" ctx b bool
+      t1 <- typeof @"context" ctx exp1
+      typecheck @"context" ctx exp2 t1
+  apred exp = Tagged $ \ctx -> typecheck @"context" ctx exp nat
   aisZero exp = Tagged go where
-    go ctx =
-      case typecheck (($ ctx) <$> exp) nat of
-        z | z == nat -> bool
+    go ctx = seq (typecheck @"context" ctx exp nat) $ return bool
 

@@ -4,6 +4,7 @@ module AExpTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import qualified Data.Map as M
 import Init
 import AExp
 
@@ -22,12 +23,12 @@ aevalTests = testGroup "aeval" $
 
 typeofTests = testGroup "typeof" $
   [ testCase "if iszero 0 then 0 else pred 0 : nat"
-    $ typeof @"typecheck_simpl" (aif (aisZero azero) azero (apred azero)) @?= Pnat
+    $ typeof' @"context" (aif (aisZero azero) azero (apred azero)) @?= Just Pnat
   , testCase "iszero (succ (succ 0)) : bool"
-    $ typeof @"typecheck_simpl" (aisZero (asucc (asucc azero))) @?= Pbool
+    $ typeof' @"context" (aisZero (asucc (asucc azero))) @?= Just Pbool
   ]
 
-aexpTests =
+mainTests =
   [ aevalTests
   , typeofTests
   ]
