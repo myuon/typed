@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -41,7 +42,7 @@ instance SpExp Int Syntax Syntax where
 
 -- type inference
 
-instance MonadThrow m => SpExp Int Syntax (Typecheck m) where
+instance MonadThrow m => SpExp Int Syntax (ContextOf m) where
   svar v = Tagged go where
     go ctx
       | M.member v ctx =
@@ -50,12 +51,12 @@ instance MonadThrow m => SpExp Int Syntax (Typecheck m) where
   sabs v ty exp = Tagged go where
     go ctx = do
       let ctx' = (v, VarBind ty) .: ctx
-      ty' <- typeof ctx' exp
+      ty' <- typeof @"context" ctx' exp
       return $ arrow ty ty'
   sapp exp1 exp2 = Tagged go where
     go ctx = do
-      ty1 <- typeof ctx exp1
-      ty2 <- typeof ctx exp2
+      ty1 <- typeof @"context" ctx exp1
+      ty2 <- typeof @"context" ctx exp2
       case ty1 of
         (Parrow ty11 ty12) | ty2 == ty11 -> return ty12
         t -> terror (unTagged exp1 ctx) (show ty2) (show ty1)

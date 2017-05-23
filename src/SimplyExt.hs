@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -112,41 +114,41 @@ instance SpExtExp Int Syntax Syntax where
 
 --
 
-instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
+instance (MonadThrow m) => SpExtExp Int Syntax (ContextOf m) where
   star = Tagged $ \_ -> return unit
   exp1 ## exp2 = Tagged go where
-    go ctx = seq (typecheck ctx exp1 unit) $ typeof ctx exp2
+    go ctx = seq (typecheck @"context" ctx exp1 unit) $ typeof @"context" ctx exp2
   typeAs exp ty = Tagged go where
-    go ctx = typecheck ctx exp ty
+    go ctx = typecheck @"context" ctx exp ty
   letin v exp1 exp2 = Tagged go where
     go ctx = do
-      typ1 <- typeof ctx exp1
-      typeof ((v , VarBind typ1) .: ctx) exp2
+      typ1 <- typeof @"context" ctx exp1
+      typeof @"context" ((v , VarBind typ1) .: ctx) exp2
   pair exp1 exp2 = Tagged go where
     go ctx = do
-      ty1 <- typeof ctx exp1
-      ty2 <- typeof ctx exp2
+      ty1 <- typeof @"context" ctx exp1
+      ty2 <- typeof @"context" ctx exp2
       return $ tuple ty1 ty2
   _1 exp = Tagged go where
     go ctx = do
-      ty' <- typeof ctx exp
+      ty' <- typeof @"context" ctx exp
       case ty' of
         Ptuple ty1 _ -> return ty1
         z -> terror (unTagged exp ctx) (show $ Ptuple wild wild) (show z)
   _2 exp = Tagged go where
     go ctx = do
-      ty' <- typeof ctx exp
+      ty' <- typeof @"context" ctx exp
       case ty' of
         Ptuple _ ty2 -> return ty2
         z -> terror (unTagged exp ctx) (show $ Ptuple wild wild) (show z)
   fields es = Tagged go where
     go ctx = do
       let labels = fmap fst es
-      typs <- mapM (typeof ctx) $ fmap snd es
+      typs <- mapM (typeof @"context" ctx) $ fmap snd es
       return $ record $ zip labels typs
   proj_label label rc = Tagged go where
     go ctx =
-      typeof ctx rc >>=
+      typeof @"context" ctx rc >>=
       \case
         Precord tys ->
           case elemIndex label (fmap (\(Pfield_at l _) -> l) tys) of
@@ -155,46 +157,46 @@ instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
         z -> terror (unTagged rc ctx) (show $ Precord [wild]) (show z)
   inL_as exp ty = Tagged go where
     go ctx = do
-      tyL <- typeof ctx exp
+      tyL <- typeof @"context" ctx exp
       case ty of
         Pcoprod ty1 ty2 | ty1 == tyL -> return $ coprod ty1 ty2
         z -> terror (unTagged exp ctx) (show $ coprod tyL wild) (show z)
   inR_as exp ty = Tagged go where
     go ctx = do
-      tyR <- typeof ctx exp
+      tyR <- typeof @"context" ctx exp
       case ty of
         Pcoprod ty1 ty2 | ty2 == tyR -> return $ coprod ty1 ty2
         z -> terror (unTagged exp ctx) (show $ coprod wild tyR) (show z)
   case_coprod exp x expL y expR = Tagged go where
     go ctx =
-      typeof ctx exp >>=
+      typeof @"context" ctx exp >>=
       \case
         Pcoprod ty1 ty2 -> do
-          tyL <- typeof ((x, VarBind ty1) .: ctx) expL
-          typecheck ((y, VarBind ty2) .: ctx) expR tyL
+          tyL <- typeof @"context" ((x, VarBind ty1) .: ctx) expL
+          typecheck @"context" ((y, VarBind ty2) .: ctx) expR tyL
         z -> terror (unTagged exp ctx) (show $ Pcoprod wild wild) (show z)
   tagging label exp ty = Tagged go where
     go ctx =
       case ty of
         Pvariant vs -> do
-          tyl <- typeof ctx exp
+          tyl <- typeof @"context" ctx exp
           if Pfield_at label tyl `elem` vs
             then return $ Pvariant vs
             else terror (unTagged exp ctx) (show tyl) (show $ Pvariant [wild])
         z -> terror (unTagged exp ctx) (show $ Pvariant [wild]) (show z)
   case_variant exp vs = Tagged go where
     go ctx =
-      typeof ctx exp >>=
+      typeof @"context" ctx exp >>=
       \case
         Pvariant vs' | fmap (\(T.Node l _) -> l) vs' == fmap (\(l,_,_) -> l) vs -> do
-          tys <- mapM (\(label,v,r) -> typeof ((v, VarBind $ (\(Just x) -> x) $ lookup label $ fmap (\(Precord_at l x) -> (l,x)) vs') .: ctx) r) vs
+          tys <- mapM (\(label,v,r) -> typeof @"context" ((v, VarBind $ (\(Just x) -> x) $ lookup label $ fmap (\(Precord_at l x) -> (l,x)) vs') .: ctx) r) vs
           case nub tys of
             [x] -> return x
             z -> throwM' $ show (fmap (\(l,v,x) -> (l,v,Pstar)) vs) `should` ("have same codomain, but " ++ show z)
         z -> terror (unTagged exp ctx) (show $ fmap (\(l,_,_) -> T.Node l []) vs) (show z)
   fixpoint exp = Tagged go where
     go ctx =
-      typeof ctx exp >>=
+      typeof @"context" ctx exp >>=
       \case
         Parrow ty1 ty2 | ty1 == ty2 -> return ty1
         Parrow ty1 ty2 -> terror (unTagged exp ctx) (show $ arrow ty1 ty1) (show $ arrow ty1 ty2)
@@ -203,13 +205,13 @@ instance (MonadThrow m) => SpExtExp Int Syntax (Typecheck m) where
     go ctx = return $ list typ
   cons_as typ exp1 exp2 = Tagged go where
     go ctx =
-      seq (typecheck ctx exp1 typ) $
-      typecheck ctx exp2 (list typ)
+      seq (typecheck @"context" ctx exp1 typ) $
+      typecheck @"context" ctx exp2 (list typ)
   isnil_as typ exp = Tagged go where
     go ctx =
-      seq (typecheck ctx exp (list typ)) $ return bool
+      seq (typecheck @"context" ctx exp (list typ)) $ return bool
   head_as typ exp = Tagged go where
     go ctx =
-      seq (typecheck ctx exp (list typ)) $ return typ
+      seq (typecheck @"context" ctx exp (list typ)) $ return typ
   tail_as typ exp = Tagged go where
-    go ctx = typecheck ctx exp (list typ)
+    go ctx = typecheck @"context" ctx exp (list typ)

@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -29,23 +31,23 @@ instance RefType Syntax where
 
 -- AExp, SpExp as RefTypecheck
 
-instance (MonadThrow m) => AVal (RefTypecheck m) where
+instance (MonadThrow m) => AVal (StoreOf m) where
   atrue = Tagged $ \_ _ -> return bool
   afalse = Tagged $ \_ _ -> return bool
   azero = Tagged $ \_ _ -> return nat
-  asucc m = Tagged $ \ctx sto -> reftypecheck ctx sto m nat
+  asucc m = Tagged $ \ctx sto -> typecheck @"store" ctx sto m nat
 
-instance (MonadThrow m) => AExp (RefTypecheck m) where
+instance (MonadThrow m) => AExp (StoreOf m) where
   aif b exp1 exp2 = Tagged go where
     go ctx sto = do
-      tb <- reftypecheck ctx sto b bool
-      t1 <- reftypeof ctx sto exp1
-      reftypecheck ctx sto exp2 t1
-  apred exp = Tagged $ \ctx sto -> reftypecheck ctx sto exp nat
+      tb <- typecheck @"store" ctx sto b bool
+      t1 <- typeof @"store" ctx sto exp1
+      typecheck @"store" ctx sto exp2 t1
+  apred exp = Tagged $ \ctx sto -> typecheck @"store" ctx sto exp nat
   aisZero exp = Tagged go where
-    go ctx sto = seq (reftypecheck ctx sto exp nat) $ return bool
+    go ctx sto = seq (typecheck @"store" ctx sto exp nat) $ return bool
 
-instance MonadThrow m => SpExp Int Syntax (RefTypecheck m) where
+instance MonadThrow m => SpExp Int Syntax (StoreOf m) where
   svar v = Tagged go where
     go ctx sto
       | M.member v ctx =
@@ -54,12 +56,12 @@ instance MonadThrow m => SpExp Int Syntax (RefTypecheck m) where
   sabs v ty exp = Tagged go where
     go ctx sto = do
       let ctx' = (v, VarBind ty) .: ctx
-      ty' <- reftypeof ctx' sto exp
+      ty' <- typeof @"store" ctx' sto exp
       return $ arrow ty ty'
   sapp exp1 exp2 = Tagged go where
     go ctx sto = do
-      ty1 <- reftypeof ctx sto exp1
-      ty2 <- reftypeof ctx sto exp2
+      ty1 <- typeof @"store" ctx sto exp1
+      ty2 <- typeof @"store" ctx sto exp2
       case ty1 of
         (Parrow ty11 ty12) | ty2 == ty11 -> return ty12
         t -> terror (unTagged exp1 ctx sto) (show ty2) (show ty1)
@@ -88,7 +90,7 @@ instance RefExp Int Syntax Syntax where
   assign = Passign
   (##) = Pseq
 
-instance MonadThrow m => RefExp Int Syntax (RefTypecheck m) where
+instance MonadThrow m => RefExp Int Syntax (StoreOf m) where
   star = Tagged $ \ctx sto -> return unit
   loc label = Tagged go where
     go ctx sto =
@@ -96,21 +98,21 @@ instance MonadThrow m => RefExp Int Syntax (RefTypecheck m) where
         True -> return $ reftype $ sto M.! label
         False -> throwM' $ notInStore label sto
   ref exp = Tagged go where
-    go ctx sto = reftype <$> reftypeof ctx sto exp
+    go ctx sto = reftype <$> typeof @"store" ctx sto exp
   deref exp = Tagged go where
     go ctx sto =
-      reftypeof ctx sto exp >>=
+      typeof @"store" ctx sto exp >>=
       \case
         Preftype ty -> return ty
         z -> terror (unTagged exp ctx sto) (show $ Preftype wild) (show z)
   assign exp1 exp2 = Tagged go where
     go ctx sto =
-      reftypeof ctx sto exp1 >>=
+      typeof @"store" ctx sto exp1 >>=
       \case
-        Preftype ty -> seq (reftypecheck ctx sto exp2 ty) $ return unit
+        Preftype ty -> seq (typecheck @"store" ctx sto exp2 ty) $ return unit
         z -> terror (unTagged exp2 ctx sto) (show $ Preftype wild) (show z)
   exp1 ## exp2 = Tagged go where
     go ctx sto =
-      seq (reftypecheck ctx sto exp1 unit) $ reftypeof ctx sto exp2
+      seq (typecheck @"store" ctx sto exp1 unit) $ typeof @"store" ctx sto exp2
 
 

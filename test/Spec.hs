@@ -12,6 +12,7 @@ main = defaultMain $ testGroup "Tests"
   [ testGroup "AExp" aexpTests
   , testGroup "Untyped" untypedTests
   , testGroup "Simply" simplyTests
+  , testGroup "SimplyExt" simplyExtTests
   , testGroup "Reference" referenceTests
 --  testGroup "Mu" muTests,
 --  testGroup "Recursive" recursiveTests

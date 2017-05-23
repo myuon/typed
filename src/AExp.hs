@@ -98,19 +98,19 @@ instance AType Syntax where
   nat = Pnat
   wild = T.Node "_" []
 
-instance (MonadThrow m) => AVal (Typecheck m) where
+instance (MonadThrow m) => AVal (ContextOf m) where
   atrue = Tagged $ \_ -> return bool
   afalse = Tagged $ \_ -> return bool
   azero = Tagged $ \_ -> return nat
-  asucc m = Tagged $ \ctx -> typecheck ctx m nat
+  asucc m = Tagged $ \ctx -> typecheck @"context" ctx m nat
 
-instance (MonadThrow m) => AExp (Typecheck m) where
+instance (MonadThrow m) => AExp (ContextOf m) where
   aif b exp1 exp2 = Tagged go where
     go ctx = do
-      tb <- typecheck ctx b bool
-      t1 <- typeof ctx exp1
-      typecheck ctx exp2 t1
-  apred exp = Tagged $ \ctx -> typecheck ctx exp nat
+      tb <- typecheck @"context" ctx b bool
+      t1 <- typeof @"context" ctx exp1
+      typecheck @"context" ctx exp2 t1
+  apred exp = Tagged $ \ctx -> typecheck @"context" ctx exp nat
   aisZero exp = Tagged go where
-    go ctx = seq (typecheck ctx exp nat) $ return bool
+    go ctx = seq (typecheck @"context" ctx exp nat) $ return bool
 
