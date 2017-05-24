@@ -34,6 +34,10 @@ class TypeOf (sym :: Symbol) where
 
   typecheck :: (MonadThrow m) => K sym (Tagged sym (K sym (m Syntax)) -> Syntax -> m Syntax)
 
+-- evaluation
+
+type CBV = Tagged "cbv" Syntax
+
 -- contexts
 
 data Binding typ = VarBind typ
@@ -73,7 +77,7 @@ instance TypeOf "context" where
 
 type ContextOf m = Tagged "context" (Context Syntax -> m Syntax)
 
---
+-- context, subtyping
 
 class ErrorMsgContext err => ErrorMsgSubtype err where
   notInRecord :: String -> Syntax -> err
@@ -95,6 +99,7 @@ instance TypeOf "subcontext" where
 type SubContextOf m = Tagged "subcontext" (Context Syntax -> m Syntax)
 
 -- store
+
 type Store a = M.Map String a
 
 class ErrorMsg err => ErrorMsgStore err where

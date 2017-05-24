@@ -44,10 +44,10 @@ instance UExp Int Syntax where
 
 -- call-by-value
 
-instance UVal (Tagged "cbv" Syntax) where
+instance UVal CBV where
   uabs t = Tagged $ Pabs $ unTagged t
 
-instance UExp Int (Tagged "cbv" Syntax) where
+instance UExp Int CBV where
   uisVal m =
     case unTagged m of
       Pabs _ -> True
@@ -82,10 +82,6 @@ instance UExp Int (Tagged "cbv" Syntax) where
       subst j s (Tagged (Pabs exp)) = uabs (subst (j+1) (shift 1 s) (Tagged exp))
       subst j s (Tagged (Papp exp1 exp2)) = uapp (subst j s (Tagged exp1)) (subst j s (Tagged exp2))
 
-ueval1 :: Tagged "cbv" Syntax -> Syntax
-ueval1 m = unTagged m
+ueval :: CBV -> Syntax
+ueval m = unTagged m
 
-ueval :: Tagged "cbv" Syntax -> Syntax
-ueval m = let m' = ueval1 m in
-  if unTagged m == m' then unTagged m
-  else ueval $ Tagged m'
