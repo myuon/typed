@@ -30,7 +30,6 @@ instance ErrorMsg (T.Tree String) where
 class TypeOf (sym :: Symbol) where
   type K (sym :: Symbol) (a :: *) :: *
   typeof :: K sym (Tagged sym (K sym (m Syntax)) -> m Syntax)
---  typeof :: ArrTyp as (TermOf sym as m -> m Syntax)
   typeof' :: Tagged sym (K sym (m Syntax)) -> m Syntax
 
   typecheck :: (MonadThrow m) => K sym (Tagged sym (K sym (m Syntax)) -> Syntax -> m Syntax)
