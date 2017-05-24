@@ -8,3 +8,4 @@ Based on [TaPL](https://www.amazon.co.jp/dp/B00AJXZ5JE/ref=dp-kindle-redirect?_e
 - [SimplyExt](src/SimplyExt.hs): Extended Simply; explicit typed (additional base, unit, tuple, record, sum, variant, polymorphic list)
 - [Reference](src/Reference.hs): Reference with Simply typed
 - [Exception](src/Exception.hs): Exception with Simply typed
+- [Subtyping](src/Subtyping.hs): Subtyping with Simply typed 
