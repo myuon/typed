@@ -1,5 +1,5 @@
 name:                typed
-version:             0.6.1.0
+version:             0.7.0.0
 synopsis:            Typed Lambda Calculus
 description:         Please see README.md
 homepage:            https://github.com/myuon/typed
@@ -15,7 +15,14 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     AExp, Untyped, Simply, SimplyExt, Reference, Mu, Recursive
+  exposed-modules:     AExp
+                     , Untyped
+                     , Simply
+                     , SimplyExt
+                     , Reference
+                     , Exception
+                     , Subtyping
+                     , Mu, Recursive
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens

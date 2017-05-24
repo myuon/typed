@@ -74,6 +74,27 @@ instance TypeOf "context" where
 
 type ContextOf m = Tagged "context" (Context Syntax -> m Syntax)
 
+--
+
+class ErrorMsgContext err => ErrorMsgSubtype err where
+  notInRecord :: String -> Syntax -> err
+
+instance ErrorMsgSubtype (T.Tree String) where
+  notInRecord label es = T.Node "Not in Record" [T.Node label [], T.Node (show es) []]
+
+instance TypeOf "subcontext" where
+  type K "subcontext" a = Context Syntax -> a
+  typeof ctx m = unTagged m ctx
+  typeof' = typeof @"subcontext" M.empty
+
+  typecheck ctx exp typ = do
+    te <- typeof @"subcontext" ctx exp
+    case te == typ of
+      True -> return typ
+      False -> terror (unTagged exp ctx) (show typ) (show te)
+
+type SubContextOf m = Tagged "subcontext" (Context Syntax -> m Syntax)
+
 -- store
 type Store a = M.Map String a
 
