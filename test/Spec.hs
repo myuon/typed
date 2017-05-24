@@ -5,6 +5,7 @@ import SimplyTest as S
 import SimplyExtTest as SE
 import ReferenceTest as R
 import ExceptionTest as E
+import SubtypingTest as SB
 import MuTest
 import RecursiveTest
 
@@ -16,6 +17,7 @@ main = defaultMain $ testGroup "Tests"
   , testGroup "SimplyExt" SE.mainTests
   , testGroup "Reference" R.mainTests
   , testGroup "Exception" E.mainTests
+  , testGroup "Subtyping" SB.mainTests
 --  testGroup "Mu" muTests,
 --  testGroup "Recursive" recursiveTests
   ]

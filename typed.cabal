@@ -21,6 +21,7 @@ library
                      , SimplyExt
                      , Reference
                      , Exception
+                     , Subtyping
                      , Mu, Recursive
   build-depends:       base >= 4.7 && < 5
                      , containers
