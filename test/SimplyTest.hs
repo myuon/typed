@@ -17,7 +17,13 @@ typeofTests = testGroup "typeof"
   , testCase "|- λ0:(bool -> bool). 0 : (bool -> bool) -> (bool -> bool)" $
     typeof' @"context" (sabs 0 (arrow bool bool) $ svar 0) @?= Just ((bool `arrow` bool) `arrow` (bool `arrow` bool))
   ]
+
+evalTests = testGroup "eval"
+  [ testCase "(λ0:nat. 0) (λ0:nat. 0) ~> (λ0:nat. 0)" $
+    cbv (sabs 0 nat (svar 0) `sapp` (sabs 0 nat (svar 0))) @?= sabs 0 nat (svar 0)
+  ]
   
 mainTests =
   [ typeofTests
+  , evalTests
   ]

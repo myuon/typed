@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
@@ -6,6 +7,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module SimplyExt where
 
+import Debug.Trace
 import Control.Monad
 import Control.Monad.Catch
 import Data.Tagged
@@ -14,7 +16,7 @@ import qualified Data.Tree as T
 import qualified Data.Map as M
 import Init
 import AExp
-import Untyped hiding (Var)
+import Untyped hiding (Var, uisVal)
 import Simply
 
 class (SpType typ) => SpExtType typ where
@@ -61,7 +63,7 @@ class (SpExp var typ repr) => SpExtExp var typ repr where
   case_coprod :: repr -> var -> repr -> var -> repr -> repr
   tagging :: String -> repr -> typ -> repr
   case_variant :: repr -> [(String, var, repr)] -> repr
-  fixpoint :: repr -> repr
+  fixpoint :: repr -> repr -> repr
   nil_as :: typ -> repr
   cons_as :: typ -> repr -> repr -> repr
   isnil_as :: typ -> repr -> repr
@@ -83,7 +85,7 @@ pattern PinR_as exp ty = T.Node "inR_as" [exp, ty]
 pattern Pcase_coprod exp x expL y expR = T.Node "case_coprod" [exp, V x, expL, V y, expR]
 pattern Ptagging label exp typ = T.Node "tagging" [T.Node label [], exp, typ]
 pattern Pcase_variant exp cases = T.Node "case_variant" [exp, T.Node "cases" cases]
-pattern Pfix exp = T.Node "fix" [exp]
+pattern Pfix exp exp2 = T.Node "fix" [exp, exp2]
 pattern Pnil_as ty = T.Node "nil" [ty]
 pattern Pcons_as ty exp1 exp2 = T.Node "cons" [ty, exp1, exp2]
 pattern Pisnil_as ty exp = T.Node "isnil" [ty, exp]
@@ -194,11 +196,11 @@ instance (MonadThrow m) => SpExtExp Int Syntax (ContextOf m) where
             [x] -> return x
             z -> throwM' $ show (fmap (\(l,v,x) -> (l,v,Pstar)) vs) `should` ("have same codomain, but " ++ show z)
         z -> terror (unTagged exp ctx) (show $ fmap (\(l,_,_) -> T.Node l []) vs) (show z)
-  fixpoint exp = Tagged go where
+  fixpoint exp exp2 = Tagged go where
     go ctx =
       typeof @"context" ctx exp >>=
       \case
-        Parrow ty1 ty2 | ty1 == ty2 -> return ty1
+        Parrow ty1 ty2 | ty1 == ty2 -> typecheck @"context" ctx exp2 ty1
         Parrow ty1 ty2 -> terror (unTagged exp ctx) (show $ arrow ty1 ty1) (show $ arrow ty1 ty2)
         z -> terror (unTagged exp ctx) (show $ Parrow wild wild) (show z)
   nil_as typ = Tagged go where
@@ -215,3 +217,103 @@ instance (MonadThrow m) => SpExtExp Int Syntax (ContextOf m) where
       seq (typecheck @"context" ctx exp (list typ)) $ return typ
   tail_as typ exp = Tagged go where
     go ctx = typecheck @"context" ctx exp (list typ)
+
+--
+
+-- isVal in SpExtExp
+-- should be polymorphic in calculus typeclasses?
+spisVal :: Syntax -> Bool
+spisVal Pstar = True
+spisVal (Ppair x1 x2) = spisVal x1 && spisVal x2
+spisVal (Pfields xs) = all spisVal xs
+spisVal (PinL_as t _) = spisVal t
+spisVal (PinR_as t _) = spisVal t
+spisVal (Pfix _ _) = True
+spisVal k = sisVal k
+
+instance Subst SpExtExp Int CBV where
+  subst v sb = go where
+    go' = unTagged . go . Tagged
+    
+    go :: CBV -> CBV
+    go (Tagged Pstar) = Tagged Pstar
+    go (Tagged (Pletin v' t1 t2)) = Tagged $ Pletin v' (go' t1) (go' t2)
+    go (Tagged (Ppair t1 t2)) = Tagged $ Ppair (go' t1) (go' t2)
+    go (Tagged (P_1 t)) = Tagged $ P_1 $ go' t
+    go (Tagged (P_2 t)) = Tagged $ P_2 $ go' t
+    go (Tagged (PinL_as t ty)) = Tagged $ PinL_as (go' t) ty
+    go (Tagged (PinR_as t ty)) = Tagged $ PinR_as (go' t) ty
+    go (Tagged (Pcase_coprod t x tx y ty)) = Tagged $ Pcase_coprod (go' t) x (go' tx) y (go' ty)
+    go z = subst @SpExp v sb z
+
+instance SpExtExp Int Syntax CBV where
+  star = Tagged Pstar
+
+  typeAs m ty
+    | sisVal m = m
+    | otherwise = Tagged $ typeAs (cbv m) ty
+  letin v t1 t2
+    | sisVal t1 = subst @SpExtExp v t1 t2
+    | otherwise =
+      let t1' = cbv t1 in
+      if t1 == Tagged t1' then Tagged $ Pletin (show v) t1' (cbv t2)
+      else letin v (Tagged t1') t2
+  pair t1 t2
+    | sisVal t1 =
+      let t2' = cbv t2 in
+      if t2 == Tagged t2' then Tagged $ Ppair (cbv t1) t2'
+      else pair t1 (Tagged t2')
+    | otherwise =
+      let t1' = cbv t1 in
+      if t1 == Tagged t1' then Tagged $ Ppair t1' (cbv t2)
+      else pair (Tagged t1') t2
+  _1 t =
+    case cbv t of
+      Ppair v1 v2 | sisVal v1 && sisVal v2 -> Tagged v1
+      t' -> if t == Tagged t' then Tagged $ P_1 t' else _1 (Tagged t')
+  _2 t =
+    case cbv t of
+      Ppair v1 v2 | sisVal v1 && sisVal v2 -> Tagged v2
+      t' -> if t == Tagged t' then Tagged $ P_2 t' else _2 (Tagged t')
+  fields ts =
+    let ts' = fmap (\(l,t) -> (l,cbv t)) ts in
+    if ts == fmap (\(l,t) -> (l,Tagged t)) ts' then Tagged $ Pfields $ fmap (\(l,t) -> Pfield_at l (cbv t)) ts else fields (fmap (\(l,t) -> (l,Tagged t)) ts')
+  proj_label label t =
+    case cbv t of
+      Pfields fs | all (\(Pfield_at _ t) -> spisVal t) fs -> 
+        case elemIndex label (fmap (\(Pfield_at l _) -> l) fs) of
+          Just n -> Tagged $ (\(Pfield_at _ x) -> x) $ fs !! n
+      t' -> if t == Tagged t' then Tagged $ Pproj_label label t' else proj_label label (Tagged t')
+  inL_as t ty =
+    let t' = cbv t in
+    if t == Tagged t' then Tagged $ PinL_as t' ty else inL_as (Tagged t') ty
+  inR_as t ty =
+    let t' = cbv t in
+    if t == Tagged t' then Tagged $ PinR_as t' ty else inR_as (Tagged t') ty
+  case_coprod t x tx y ty =
+    case cbv t of
+      PinL_as v _ | spisVal v -> subst @SpExtExp x (Tagged v) tx
+      PinR_as v _ | spisVal v -> subst @SpExtExp y (Tagged v) ty
+      t' ->
+        if t == Tagged t' then Tagged $ Pcase_coprod t' (show x) (cbv tx) (show y) (cbv ty)
+        else case_coprod (Tagged t') x ty y ty
+  tagging label t ty =
+    let t' = cbv t in
+    if t == Tagged t' then Tagged $ Ptagging label t' ty else tagging label (Tagged t') ty
+  case_variant t vs =
+    case cbv t of
+      Ptagging label v ty | spisVal v ->
+        case elemIndex label (fmap (\(l,_,_) -> l) vs) of
+          Just n -> (\(_,x,t) -> subst @SpExtExp x (Tagged v) t) $ vs !! n
+      t' -> if t == Tagged t' then Tagged $ Pcase_variant t' $ fmap (\(l,x,t) -> T.Node l [V $ show x, unTagged t]) vs
+            else case_variant (Tagged t') vs
+
+{-
+  we need some kind of `lazy-evaluation` to define a fixpoint operator
+
+
+  fixpoint t1 t2 =
+    case cbv t1 of
+      z@(PabsT x ty (PabsT y ty' t1')) -> subst @SpExtExp (read x) (fixpoint (Tagged z) t2) $ subst @SpExtExp (read y) t2 (Tagged t1')
+      t' -> if t1 == Tagged t' then Tagged $ Pfix t' (cbv t2) else fixpoint (Tagged t') t2
+-}

@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -30,10 +31,19 @@ instance ErrorMsg (T.Tree String) where
 class TypeOf (sym :: Symbol) where
   type K (sym :: Symbol) (a :: *) :: *
   typeof :: K sym (Tagged sym (K sym (m Syntax)) -> m Syntax)
---  typeof :: ArrTyp as (TermOf sym as m -> m Syntax)
   typeof' :: Tagged sym (K sym (m Syntax)) -> m Syntax
 
   typecheck :: (MonadThrow m) => K sym (Tagged sym (K sym (m Syntax)) -> Syntax -> m Syntax)
+
+-- evaluation
+
+type CBV = Tagged "cbv" Syntax
+
+cbv :: CBV -> Syntax
+cbv m = unTagged m
+
+class Subst exp var repr | exp -> repr, exp -> var where
+  subst :: exp var t repr => var -> repr -> repr -> repr
 
 -- contexts
 
@@ -74,7 +84,7 @@ instance TypeOf "context" where
 
 type ContextOf m = Tagged "context" (Context Syntax -> m Syntax)
 
---
+-- context, subtyping
 
 class ErrorMsgContext err => ErrorMsgSubtype err where
   notInRecord :: String -> Syntax -> err
@@ -96,6 +106,7 @@ instance TypeOf "subcontext" where
 type SubContextOf m = Tagged "subcontext" (Context Syntax -> m Syntax)
 
 -- store
+
 type Store a = M.Map String a
 
 class ErrorMsg err => ErrorMsgStore err where

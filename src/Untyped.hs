@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -43,33 +44,40 @@ instance UExp Int Syntax where
 
 -- call-by-value
 
-class (Eq repr, UExp var repr) => UEval var repr | repr -> var where
-  ueval1 :: repr -> repr
+instance UVal CBV where
+  uabs t = Tagged $ Pabs $ unTagged t
 
-  ueval :: repr -> repr
-  ueval r = let r' = ueval1 r in
-    if r == r' then r
-    else ueval r'
+instance UExp Int CBV where
+  uisVal m =
+    case unTagged m of
+      Pabs _ -> True
+      _ -> False
 
-instance UEval Int Syntax where
-  ueval1 = go where
-    shift :: Int -> Syntax -> Syntax
-    shift d = go d 0 where
-      go :: Int -> Int -> Syntax -> Syntax
-      go d c (Pvar k_) = let k = read k_ in
-        if k < c then Pvar (show k)
-        else Pvar (show $ k + d)
-      go d c (Pabs exp) = Pabs (go d (c+1) exp)
-      go d c (Papp exp1 exp2) = Papp (go d c exp1) (go d c exp2)
+  uvar v = Tagged $ Pvar $ show v
+  uapp m1 m2 =
+    case unTagged m1 of
+      Pabs m1' | uisVal m2 -> shift (-1) (subst 0 (shift 1 m2) (Tagged m1'))
+      _ | uisVal m1 -> 
+        let m2' = Tagged $ unTagged m2 in
+        if unTagged m2 == unTagged m2' then Tagged $ Papp (unTagged m1) (unTagged m2)
+        else uapp m1 m2'
+      _ ->
+        let m1' = Tagged $ unTagged m1 in
+        if unTagged m1 == unTagged m1' then Tagged $ Papp (unTagged m1) (unTagged m2)
+        else uapp m1' m2
 
-    subst :: Int -> Syntax -> Syntax -> Syntax
-    subst j s (Pvar k_) = let k = read k_ in
-      if k == j then s else Pvar (show k)
-    subst j s (Pabs exp) = Pabs (subst (j+1) (shift 1 s) exp)
-    subst j s (Papp exp1 exp2) = Papp (subst j s exp1) (subst j s exp2)
-    
-    go :: Syntax -> Syntax
-    go (Papp (Pabs exp1) exp2) | uisVal exp2 = shift (-1) (subst 0 (shift 1 exp2) exp1)
-    go (Papp exp1 exp2) | uisVal exp1 = Papp exp1 (go exp2)
-    go (Papp exp1 exp2) = Papp (go exp1) exp2
-    go e = e
+    where
+      shift :: Int -> Tagged "cbv" Syntax -> Tagged "cbv" Syntax
+      shift d = go d 0 where
+        go :: Int -> Int -> Tagged "cbv" Syntax -> Tagged "cbv" Syntax
+        go d c (Tagged (Pvar k_)) = let k = read k_ in
+          if k < c then uvar k
+          else uvar (k + d)
+        go d c (Tagged (Pabs exp)) = uabs (go d (c+1) (Tagged exp))
+        go d c (Tagged (Papp exp1 exp2)) = uapp (go d c (Tagged exp1)) (go d c (Tagged exp2))
+
+      subst :: Int -> Tagged "cbv" Syntax -> Tagged "cbv" Syntax -> Tagged "cbv" Syntax
+      subst j s (Tagged (Pvar k_)) = let k = read k_ in
+        if k == j then s else uvar k
+      subst j s (Tagged (Pabs exp)) = uabs (subst (j+1) (shift 1 s) (Tagged exp))
+      subst j s (Tagged (Papp exp1 exp2)) = uapp (subst j s (Tagged exp1)) (subst j s (Tagged exp2))
