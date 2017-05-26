@@ -81,7 +81,3 @@ instance UExp Int CBV where
         if k == j then s else uvar k
       subst j s (Tagged (Pabs exp)) = uabs (subst (j+1) (shift 1 s) (Tagged exp))
       subst j s (Tagged (Papp exp1 exp2)) = uapp (subst j s (Tagged exp1)) (subst j s (Tagged exp2))
-
-ueval :: CBV -> Syntax
-ueval m = unTagged m
-

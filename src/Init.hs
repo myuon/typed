@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -37,6 +38,12 @@ class TypeOf (sym :: Symbol) where
 -- evaluation
 
 type CBV = Tagged "cbv" Syntax
+
+cbv :: CBV -> Syntax
+cbv m = unTagged m
+
+class Subst exp var repr | exp -> repr, exp -> var where
+  subst :: exp var t repr => var -> repr -> repr -> repr
 
 -- contexts
 

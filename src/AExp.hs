@@ -46,41 +46,6 @@ instance AExp Syntax where
   apred = Ppred
   aisZero = PisZero
 
--- value
-
-data AValue
-  = ATrue | AFalse
-  | AZero | ASucc AValue
-  deriving (Eq, Show)
-
-instance AVal AValue where
-  atrue = ATrue
-  afalse = AFalse
-  azero = AZero
-  asucc exp = ASucc exp
-
--- big-step semantics
-
-instance AVal (Tagged "eval" AValue) where
-  atrue = Tagged atrue
-  afalse = Tagged afalse
-  azero = Tagged azero
-  asucc (Tagged n) = Tagged $ asucc n
-
-instance AExp (Tagged "eval" AValue) where
-  aif b exp1 exp2
-    | b == atrue = exp1
-    | b == afalse = exp2
-  apred exp = case exp of
-    Tagged AZero -> azero
-    Tagged (ASucc n) -> Tagged n
-  aisZero exp = case exp of
-    Tagged AZero -> atrue
-    Tagged (ASucc _) -> afalse
-
-aeval :: Tagged "eval" AValue -> AValue
-aeval = unTagged
-
 -- types
 
 class AType typ where
@@ -113,4 +78,29 @@ instance (MonadThrow m) => AExp (ContextOf m) where
   apred exp = Tagged $ \ctx -> typecheck @"context" ctx exp nat
   aisZero exp = Tagged go where
     go ctx = seq (typecheck @"context" ctx exp nat) $ return bool
+
+--
+
+instance AVal CBV where
+  atrue = Tagged atrue
+  afalse = Tagged afalse
+  azero = Tagged azero
+  asucc m = Tagged $ asucc $ unTagged m
+
+instance AExp CBV where
+  aif b exp1 exp2
+    | unTagged b == Ptrue = exp1
+    | unTagged b == Pfalse = exp2
+    | otherwise =
+      let b' = unTagged b in
+      if b == Tagged b' then Tagged $ Pif (unTagged b) (unTagged exp1) (unTagged exp2)
+      else aif (Tagged b') exp1 exp2
+  apred m = case cbv m of
+    Psucc m' -> Tagged m'
+    Pzero -> azero
+    m' -> Tagged $ Ppred m'
+  aisZero m = case cbv m of
+    Pzero -> atrue
+    Psucc _ -> afalse
+    m' -> Tagged $ PisZero m'
 
