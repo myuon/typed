@@ -5,19 +5,18 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
-module SimplyExt where
+module Lambda.Explicit.SimplyExt where
 
-import Debug.Trace
 import Control.Monad
 import Control.Monad.Catch
 import Data.Tagged
 import Data.List (elemIndex, nub, lookup)
 import qualified Data.Tree as T
 import qualified Data.Map as M
-import Init
-import AExp
-import Untyped hiding (Var, uisVal)
-import Simply
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Untyped hiding (Var, uisVal)
+import Lambda.Explicit.Simply
 
 class (SpType typ) => SpExtType typ where
   baseA :: typ

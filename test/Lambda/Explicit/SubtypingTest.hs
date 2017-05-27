@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module SubtypingTest where
+module Lambda.Explicit.SubtypingTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Init
-import AExp
-import Simply
-import Subtyping
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
+import Lambda.Explicit.Subtyping
 
 typeofTests = testGroup "typeof" $
   [ testCase "|- (λ(0:{x:nat}). 0.x) {x=0, y=true} : nat" $

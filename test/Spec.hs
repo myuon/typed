@@ -1,18 +1,17 @@
 import Test.Tasty
-import AExpTest as A
-import UntypedTest as U
-import SimplyTest as S
-import SimplyExtTest as SE
-import ReferenceTest as R
-import ExceptionTest as E
-import SubtypingTest as SB
-import RecursiveTest as RC
-import MuTest
-import RecursiveTest
+import Expr.ArithTest as A
+import Lambda.Explicit.UntypedTest as U
+import Lambda.Explicit.SimplyTest as S
+import Lambda.Explicit.SimplyExtTest as SE
+import Lambda.Explicit.ReferenceTest as R
+import Lambda.Explicit.ExceptionTest as E
+import Lambda.Explicit.SubtypingTest as SB
+import Lambda.Explicit.RecursiveTest as RC
+-- import MuTest
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  [ testGroup "AExp" A.mainTests
+  [ testGroup "Arith" A.mainTests
   , testGroup "Untyped" U.mainTests
   , testGroup "Simply" S.mainTests
   , testGroup "SimplyExt" SE.mainTests

@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
-module Reference where
+module Lambda.Explicit.Reference where
 
 import Control.Monad
 import Control.Monad.Catch
@@ -13,11 +13,11 @@ import Data.Tagged
 import Data.List (elemIndex, nub, lookup)
 import qualified Data.Tree as T
 import qualified Data.Map as M
-import Init
-import AExp
-import Untyped hiding (Var)
-import Simply
-import SimplyExt (pattern Punit, pattern Pstar)
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Untyped hiding (Var)
+import Lambda.Explicit.Simply
+import Lambda.Explicit.SimplyExt (pattern Punit, pattern Pstar)
 
 class (SpType typ) => RefType typ where
   unit :: typ

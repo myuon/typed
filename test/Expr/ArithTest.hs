@@ -1,12 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module AExpTest where
+module Expr.ArithTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.Map as M
-import Init
-import AExp
+import Preliminary.Types
+import Expr.Arith
 
 cbvTests = testGroup "cbv" $
   [ testCase "if true then 0 else 1 ~> 0"

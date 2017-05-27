@@ -5,7 +5,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Subtyping where
+module Lambda.Explicit.Subtyping where
 
 import Control.Monad.Catch
 import Data.Tagged
@@ -13,9 +13,9 @@ import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Init
-import AExp
-import Simply
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
 
 --
 

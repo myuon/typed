@@ -15,15 +15,15 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     AExp
-                     , Untyped
-                     , Simply
-                     , SimplyExt
-                     , Reference
-                     , Exception
-                     , Subtyping
-                     , Recursive
-                     , Mu
+  exposed-modules:     Expr.Arith
+                     , Lambda.Explicit.Untyped
+                     , Lambda.Explicit.Simply
+                     , Lambda.Explicit.SimplyExt
+                     , Lambda.Explicit.Reference
+                     , Lambda.Explicit.Exception
+                     , Lambda.Explicit.Subtyping
+                     , Lambda.Explicit.Recursive
+                     , Lambda.Mu
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens

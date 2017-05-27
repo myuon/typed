@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module RecursiveTest where
+module Lambda.Explicit.RecursiveTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Init
-import AExp
-import Simply
-import Subtyping
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
+import Lambda.Explicit.Subtyping
 
 typeofTest = testGroup "typeof" [
   ]

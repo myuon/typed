@@ -1,10 +1,10 @@
 {-# LANGUAGE TypeApplications #-}
-module ExceptionTest where
+module Lambda.Explicit.ExceptionTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Init
-import Untyped
+import Preliminary.Types
+import Lambda.Explicit.Untyped
 
 excTests = testGroup "exception" $
   [

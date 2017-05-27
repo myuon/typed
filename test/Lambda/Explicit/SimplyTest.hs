@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module SimplyTest where
+module Lambda.Explicit.SimplyTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.Map as M
-import Init
-import AExp
-import Simply
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
 
 typeofTests = testGroup "typeof"
   [ testCase "0 : bool |- 0 : bool" $
