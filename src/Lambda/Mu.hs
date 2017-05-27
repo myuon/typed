@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Mu where
+module Lambda.Mu where
 
 import Data.Maybe (fromJust)
 import qualified Data.Map as M

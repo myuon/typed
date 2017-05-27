@@ -8,7 +8,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
-module Init where
+module Preliminary.Types where
 
 import Control.Monad.Catch
 import qualified Data.Tree as T

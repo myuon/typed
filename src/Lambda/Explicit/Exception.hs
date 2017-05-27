@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
-module Exception where
+module Lambda.Explicit.Exception where
 
 import Control.Monad
 import Control.Monad.Catch
@@ -14,10 +14,10 @@ import Data.Tagged
 import Data.List (elemIndex, nub, lookup)
 import qualified Data.Tree as T
 import qualified Data.Map as M
-import Init
-import AExp
-import Untyped hiding (Var)
-import Simply
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Untyped hiding (Var)
+import Lambda.Explicit.Simply
 
 class (SpExp var typ repr) => ExcExp var typ repr where
   err :: typ -> repr

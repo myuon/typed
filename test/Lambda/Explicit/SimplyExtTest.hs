@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module SimplyExtTest where
+module Lambda.Explicit.SimplyExtTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import GHC.TypeLits
 import qualified Data.Map as M
-import Init
-import AExp
-import Simply
-import SimplyExt
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
+import Lambda.Explicit.SimplyExt
 
 typeofTests = testGroup "typeof"
   [ testCase "|- λ0:A. 0 : A -> A" $

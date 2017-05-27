@@ -7,7 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-module Untyped where
+module Lambda.Explicit.Untyped where
 
 import Control.Monad
 import Data.Tagged
@@ -15,7 +15,7 @@ import GHC.TypeLits
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Set as S
-import Init
+import Preliminary.Types
 
 -- syntax tree
 

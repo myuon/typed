@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Simply where
+module Lambda.Explicit.Simply where
 
 import Control.Monad.Catch
 import Data.Tagged
@@ -12,9 +12,9 @@ import qualified Data.Foldable as F
 import qualified Data.Tree as T
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Init
-import AExp
-import Untyped hiding (Var, uisVal)
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Untyped hiding (Var, uisVal)
 
 -- simply typed
 

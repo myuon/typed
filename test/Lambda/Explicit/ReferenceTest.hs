@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module ReferenceTest where
+module Lambda.Explicit.ReferenceTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import GHC.TypeLits
 import qualified Data.Map as M
-import Init
-import AExp
-import Simply
-import Reference
+import Preliminary.Types
+import Expr.Arith
+import Lambda.Explicit.Simply
+import Lambda.Explicit.Reference
 
 reftypeofTests = testGroup "reftypeof"
   [ testCase "|- ref 1 : Ref nat" $

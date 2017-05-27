@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-module AExp where
+module Expr.Arith where
 
 import qualified Data.Foldable as F
 import qualified Data.Tree as T
@@ -12,7 +12,7 @@ import Data.Tagged
 import Control.Monad
 import Control.Monad.Catch
 import GHC.TypeLits
-import Init
+import Preliminary.Types as M
 
 -- syntax tree
 

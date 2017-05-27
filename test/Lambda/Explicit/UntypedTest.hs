@@ -1,10 +1,10 @@
 {-# LANGUAGE TypeApplications #-}
-module UntypedTest where
+module Lambda.Explicit.UntypedTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Init
-import Untyped
+import Preliminary.Types
+import Lambda.Explicit.Untyped
 
 cbvTests = testGroup "cbv" $
   [ testCase "(λ. 1 0 2) (λ. 0) ~> 0 (λ. 0) 1"
