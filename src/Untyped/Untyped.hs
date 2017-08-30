@@ -2,53 +2,58 @@ module Untyped.Untyped where
 
 import Control.Monad.Catch
 import qualified Data.Tree as T
+import qualified Data.Map as M
+import Util
 
-type ADT = T.Tree String
+pattern Tnat x = T.Node x []
+pattern Tvar x n = T.Node "var" [Tnat x,Tnat n]
+pattern Tabs x t = T.Node "lambda" [Tnat x,t]
+pattern Tapp tx ty = T.Node "app" [tx,ty]
 
-pattern Ttrue = T.Node "true" []
-pattern Tfalse = T.Node "false" []
-pattern Tif b t1 t2 = T.Node "if_then_else" [b, t1, t2]
-pattern Tzero = T.Node "0" []
-pattern Tsucc n = T.Node "succ" [n]
-pattern Tpred n = T.Node "pred" [n]
-pattern Tiszero n = T.Node "iszero" [n]
+data Binding = NameBind
+type Var = String
+type Context = M.Map Var Binding
 
-isNat :: ADT -> Bool
-isNat Tzero = True
-isNat (Tsucc t) = isNat t
-isNat _ = False
+shift :: Int -> ADT -> ADT
+shift d = go 0
+  where
+    go :: Int -> ADT -> ADT
+    go c (Tvar x n)
+      | read x >= c = Tvar (show $ read x + d) (show $ read n + d)
+      | otherwise = Tvar x (show $ read n + d)
+    go c (Tabs x t) = Tabs x (go (c+1) t)
+    go c (Tapp tx ty) = Tapp (go c tx) (go c ty)
 
-isVal Ttrue = True
-isVal Tfalse = True
-isVal t | isNat t = True
-isVal _ = False
+subst :: Int -> ADT -> ADT -> ADT
+subst j s = go 0 where
+  go c (Tvar x n)
+    | read x == j + c = shift c s
+    | otherwise = Tvar x n
+  go c (Tabs x t) = Tabs x (go (c+1) t)
+  go c (Tapp tx ty) = Tapp (go c tx) (go c ty)
 
+substTop :: ADT -> ADT -> ADT
+substTop s = shift (-1) . subst 0 (shift 1 s)
+
+isVal :: Context -> ADT -> Bool
+isVal _ (Tabs _ _) = True
+isVal _ _ = False
 
 data UntypedEvalException = NoRuleApplies deriving Show
 instance Exception UntypedEvalException
 
-eval1 :: MonadThrow m => ADT -> m ADT
-eval1 (Tif Ttrue t1 t2) = return t1
-eval1 (Tif Tfalse t1 t2) = return t2
-eval1 (Tif t1 t2 t3) = do
-  t1' <- eval1 t1
-  return $ Tif t1' t2 t3
-eval1 (Tsucc t) = do
-  t' <- eval1 t
-  return $ Tsucc t'
-eval1 (Tpred Tzero) = return Tzero
-eval1 (Tpred (Tsucc n)) | isNat n = return n
-eval1 (Tpred t) = do
-  t' <- eval1 t
-  return $ Tpred t'
-eval1 (Tiszero Tzero) = return Ttrue
-eval1 (Tiszero (Tsucc n)) | isNat n = return Tfalse
-eval1 (Tiszero t) = do
-  t' <- eval1 t
-  return $ Tiszero t'
-eval1 _ = throwM NoRuleApplies
+eval1 :: MonadThrow m => Context -> ADT -> m ADT
+eval1 ctx = go where
+  go (Tapp (Tabs x t) v) | isVal ctx v = return $ substTop v t
+  go (Tapp v t) | isVal ctx v = do
+    t' <- eval1 ctx t
+    return $ Tapp v t'
+  go (Tapp tx ty) = do
+    tx' <- eval1 ctx tx
+    return $ Tapp tx' ty
+  go _ = throwM NoRuleApplies
 
-eval :: MonadCatch m => ADT -> m ADT
-eval t = catch (eval1 t) $ \case
+eval :: MonadCatch m => Context -> ADT -> m ADT
+eval ctx t = catch (eval1 ctx t) $ \case
   NoRuleApplies -> return t
 

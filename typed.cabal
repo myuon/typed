@@ -34,7 +34,9 @@ library
     , tasty-hunit
     , base >=4.7 && <5
   exposed-modules:
+      Untyped.Arith
       Untyped.Untyped
+      Util
   default-language: Haskell2010
 
 test-suite typed
@@ -53,5 +55,6 @@ test-suite typed
     , tasty
     , tasty-hunit
   other-modules:
+      ArithTest
       UntypedTest
   default-language: Haskell2010
