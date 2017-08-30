@@ -1,8 +1,13 @@
+-- This file has been generated from package.yaml by hpack version 0.17.1.
+--
+-- see: https://github.com/sol/hpack
+
 name:                typed
 version:             0.8.1.0
 synopsis:            Typed Lambda Calculus
 description:         Please see README.md
-homepage:            https://github.com/myuon/typed
+homepage:            https://github.com/myuon/typed#readme
+bug-reports:         https://github.com/myuon/typed/issues
 license:             MIT
 license-file:        LICENSE
 author:              myuon
@@ -10,44 +15,43 @@ maintainer:          ioi.joi.koi.loi@gmail.com
 copyright:           2016 myuon
 category:            Other
 build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+cabal-version:       >= 1.10
 
-library
-  hs-source-dirs:      src
-  exposed-modules:     Expr.Arith
-                     , Lambda.Explicit.Untyped
-                     , Lambda.Explicit.Simply
-                     , Lambda.Explicit.SimplyExt
-                     , Lambda.Explicit.Reference
-                     , Lambda.Explicit.Exception
-                     , Lambda.Explicit.Subtyping
-                     , Lambda.Explicit.Recursive
-                     , Lambda.Mu
-  build-depends:       base >= 4.7 && < 5
-                     , containers
-                     , lens
-                     , mtl
-                     , exceptions
-                     , tagged
-  default-language:    Haskell2010
-
-test-suite typed-test
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test, src
-  main-is:             Spec.hs
-  build-depends:       base
-                     , typed
-                     , tasty
-                     , tasty-hunit
-                     , containers
-                     , lens
-                     , mtl
-                     , exceptions
-                     , tagged
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  default-language:    Haskell2010
+extra-source-files:
+    README.md
 
 source-repository head
-  type:     git
+  type: git
   location: https://github.com/myuon/typed
+
+library
+  hs-source-dirs:
+      src
+  default-extensions: PatternSynonyms LambdaCase
+  build-depends:
+      containers
+    , exceptions
+    , tasty-hunit
+    , base >=4.7 && <5
+  exposed-modules:
+      Untyped.Untyped
+  default-language: Haskell2010
+
+test-suite typed
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  hs-source-dirs:
+      test
+  default-extensions: PatternSynonyms LambdaCase
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      containers
+    , exceptions
+    , tasty-hunit
+    , base
+    , typed
+    , tasty
+    , tasty-hunit
+  other-modules:
+      UntypedTest
+  default-language: Haskell2010
