@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -28,12 +31,12 @@ class ErrorMsg err where
 instance ErrorMsg (T.Tree String) where
   should a b = T.Node "should" [T.Node a [], T.Node b []]
 
-class TypeOf (sym :: Symbol) where
+class TypeOf (sym :: Symbol) m s where
   type K (sym :: Symbol) (a :: *) :: *
-  typeof :: K sym (Tagged sym (K sym (m Syntax)) -> m Syntax)
-  typeof' :: Tagged sym (K sym (m Syntax)) -> m Syntax
+  typeof :: K sym (Tagged sym (K sym (m s)) -> m s)
+  typeof' :: Tagged sym (K sym (m s)) -> m s
 
-  typecheck :: (MonadThrow m) => K sym (Tagged sym (K sym (m Syntax)) -> Syntax -> m Syntax)
+  typecheck :: (MonadThrow m) => K sym (Tagged sym (K sym (m s)) -> Syntax -> m s)
 
 -- evaluation
 
@@ -71,7 +74,7 @@ throwM' = throwM
 terror :: (MonadThrow m) => m Syntax -> String -> String -> m a
 terror m exp act = m >>= \m' -> throwM' $ typeMismatch (show m') exp act
 
-instance TypeOf "context" where
+instance TypeOf "context" m Syntax where
   type K "context" a = Context Syntax -> a
   typeof ctx m = unTagged m ctx
   typeof' = typeof @"context" M.empty
@@ -92,7 +95,7 @@ class ErrorMsgContext err => ErrorMsgSubtype err where
 instance ErrorMsgSubtype (T.Tree String) where
   notInRecord label es = T.Node "Not in Record" [T.Node label [], T.Node (show es) []]
 
-instance TypeOf "subcontext" where
+instance TypeOf "subcontext" m Syntax where
   type K "subcontext" a = Context Syntax -> a
   typeof ctx m = unTagged m ctx
   typeof' = typeof @"subcontext" M.empty
@@ -115,7 +118,7 @@ class ErrorMsg err => ErrorMsgStore err where
 instance ErrorMsgStore (T.Tree String) where
   notInStore v ctx = T.Node "Not in Store" [T.Node v [], T.Node (show ctx) []]
 
-instance TypeOf "store" where
+instance TypeOf "store" m Syntax where
   type K "store" a = Context Syntax -> Store Syntax -> a
   typeof ctx sto m = unTagged m ctx sto
   typeof' = typeof @"store" M.empty M.empty
@@ -127,4 +130,29 @@ instance TypeOf "store" where
       False -> terror (unTagged exp ctx sto) (show typ) (show te)
 
 type StoreOf m = Tagged "store" (Context Syntax -> Store Syntax -> m Syntax)
+
+-- constraints
+
+type Constr a = [(a,a)]
+type TVars = [Int]
+
+class ErrorMsgContext err => ErrorMsgConstr err where
+  unificationFailed :: String -> Constr Syntax -> err
+
+instance ErrorMsgConstr (T.Tree String) where
+  unificationFailed v con = T.Node "unification failed" [T.Node v [], T.Node (show con) []]
+
+instance TypeOf "constr" m (Syntax, TVars, Constr Syntax) where
+  type K "constr" a = Context Syntax -> a
+  typeof ctx m = unTagged m ctx
+  typeof' = typeof @"constr" M.empty
+
+  typecheck ctx exp typ = do
+    (te,vs,con) <- typeof @"constr" ctx exp
+    case te == typ of
+      True -> return (typ,vs,con)
+      False -> terror ((\(a,_,_) -> a) <$> unTagged exp ctx) (show typ) (show te)
+
+type ConstrOf m = Tagged "constr" (Context Syntax -> m (Syntax, TVars, Constr Syntax))
+
 
