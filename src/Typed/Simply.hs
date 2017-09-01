@@ -18,7 +18,7 @@ pattern Tfalse = T.Node "false" []
 pattern Tif b t1 t2 = T.Node "if_then_else" [b, t1, t2]
 
 pattern Tnat x = T.Node x []
-pattern Tvar x n = T.Node "var" [Tnat x,Tnat n]
+pattern Tvar x = T.Node "var" [Tnat x]
 pattern Tabs x xt t = T.Node "lambda" [Tnat x,xt,t]
 pattern Tapp tx ty = T.Node "app" [tx,ty]
 
@@ -26,6 +26,8 @@ data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | GuardOfConditionalNotABoolean
   | WrongKindOfBindingForVariable
+  | ParameterTypeMismatch
+  | ArrowTypeExpected
   deriving Show
 
 instance Exception TypeOfError
@@ -42,12 +44,19 @@ typeof ctx = go where
       tb <- typeof ctx b
       if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
       else throwM GuardOfConditionalNotABoolean
-  go (Tvar x _) = case ctx M.! x of
+  go (Tvar x) = case ctx M.! x of
     NameBind -> throwM WrongKindOfBindingForVariable
     VarBind typ -> return typ
   go (Tabs x xt t) = do
     let ctx' = M.insert x (VarBind xt) ctx
     tt <- typeof ctx' t
     return $ Tarr xt tt
-
+  go (Tapp tx ty) = do
+    txTyp <- typeof ctx tx
+    tyTyp <- typeof ctx ty
+    case txTyp of
+      Tarr txTyp1 txTyp2 ->
+        if tyTyp == txTyp1 then return txTyp2
+        else throwM ParameterTypeMismatch
+      _ -> throwM ArrowTypeExpected
 
