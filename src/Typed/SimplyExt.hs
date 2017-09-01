@@ -49,7 +49,7 @@ eval1 ctx = go where
     return $ Tapp tx' ty
   go (Tas t typ)
     | isVal t = return t
-    | otherwise = go t >>= \t' -> return $ Tas (go t) typ
+    | otherwise = go t >>= \t' -> return $ Tas t' typ
   go t = return t
 
 eval :: MonadCatch m => Context -> ADT -> m ADT
