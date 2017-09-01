@@ -10,5 +10,7 @@ test_typeof =
   , testCase "f:bool -> bool |- λx:bool. f (if x then false else x):bool -> bool" $ rights [typeof (M.singleton "f" (VarBind (Tbool `Tarr` Tbool))) (Tabs "x" Tbool (Tvar "f" `Tapp` Tif (Tvar "x") Tfalse (Tvar "x")))] @?= [Tarr Tbool Tbool]
   ]
 
-
+test_eval =
+  [ testCase "(λx:bool. x) true" $ rights [eval M.empty (Tabs "x" Tbool (Tvar "x") `Tapp` Ttrue)] @?= [Ttrue]
+  ]
 
