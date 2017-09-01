@@ -82,18 +82,23 @@ subst x v = go where
 
 eval1 :: MonadThrow m => Context -> ADT -> m ADT
 eval1 ctx = go where
+  go Ttrue = return Ttrue
+  go Tfalse = return Tfalse
   go (Tif Ttrue t1 t2) = return t1
   go (Tif Tfalse t1 t2) = return t2
   go (Tif t1 t2 t3) = do
     t1' <- eval1 ctx t1
     return $ Tif t1' t2 t3
+  go (Tvar x) = return $ Tvar x
+  go (Tabs x xt t) = return $ Tabs x xt t
   go (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
-  go (Tapp tx ty) | isVal tx = do
-    ty' <- eval1 ctx ty
-    return $ Tapp tx ty'
-  go (Tapp tx ty) = do
-    tx' <- eval1 ctx tx
-    return $ Tapp tx' ty
+  go (Tapp tx ty)
+    | isVal tx = do
+      ty' <- eval1 ctx ty
+      return $ Tapp tx ty'
+    | otherwise = do
+      tx' <- eval1 ctx tx
+      return $ Tapp tx' ty
   go t = return t
 
 eval :: MonadCatch m => Context -> ADT -> m ADT
