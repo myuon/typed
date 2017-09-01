@@ -1,4 +1,4 @@
-module UntypedTest where
+module Untyped.UntypedTest where
 
 import Data.Either
 import qualified Data.Map as M

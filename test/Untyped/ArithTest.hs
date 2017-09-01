@@ -1,4 +1,4 @@
-module ArithTest where
+module Untyped.ArithTest where
 
 import Data.Either
 import Test.Tasty.HUnit

@@ -56,7 +56,7 @@ test-suite typed
     , tasty
     , tasty-hunit
   other-modules:
-      ArithTest
-      SimplyTest
-      UntypedTest
+      Typed.SimplyTest
+      Untyped.ArithTest
+      Untyped.UntypedTest
   default-language: Haskell2010

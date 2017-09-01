@@ -1,4 +1,4 @@
-module SimplyTest where
+module Typed.SimplyTest where
 
 import Data.Either
 import qualified Data.Map as M
