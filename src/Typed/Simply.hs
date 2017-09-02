@@ -1,6 +1,8 @@
+{-# LANGUAGE TypeFamilies #-}
 module Typed.Simply where
 
 import Control.Monad.Catch
+import Control.Monad.Fix
 import qualified Data.Tree as T
 import qualified Data.Map as M
 import Util
@@ -21,6 +23,7 @@ pattern Tnat x = T.Node x []
 pattern Tvar x = T.Node "var" [Tnat x]
 pattern Tabs x xt t = T.Node "lambda" [Tnat x,xt,t]
 pattern Tapp tx ty = T.Node "app" [tx,ty]
+
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
