@@ -25,6 +25,7 @@ library:
   source-dirs: src
   dependencies:
   - base >=4.7 && <5
+  - recursion-schemes
 
 tests:
   typed:
