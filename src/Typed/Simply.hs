@@ -5,8 +5,9 @@ import Control.Monad.Catch
 import Control.Monad.Fix
 import qualified Data.Tree as T
 import qualified Data.Map as M
-import Util
+--import Util
 
+{-
 type Typ = T.Tree String
 type Var = String
 type Context = M.Map Var Binding
@@ -108,3 +109,4 @@ eval :: MonadCatch m => Context -> ADT -> m ADT
 eval ctx t = catch (eval1 ctx t) $ \case
   NoRuleApplies -> return t
 
+-}

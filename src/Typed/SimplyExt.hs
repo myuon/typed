@@ -2,9 +2,9 @@ module Typed.SimplyExt where
 
 import Control.Monad.Catch
 import qualified Data.Tree as T
-import Typed.Simply (pattern Ttrue, pattern Tfalse, pattern Tif, pattern Tvar, pattern Tabs, pattern Tapp, Var, Context)
-import Util
+--import Typed.Simply (pattern Ttrue, pattern Tfalse, pattern Tif, pattern Tvar, pattern Tabs, pattern Tapp, Var, Context)
 
+{-
 pattern Tbase = T.Node "A" []
 pattern Tunit = T.Node "unit" []
 
@@ -64,3 +64,4 @@ eval ctx t = catch (eval1 ctx t) $ \case
   NoRuleApplies -> return t
 
 
+-}
