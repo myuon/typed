@@ -23,6 +23,27 @@ isNat Tzero = True
 isNat (Tsucc t) = isNat t
 isNat _ = False
 
+evalArith :: MonadThrow m => StrTree -> m StrTree
+evalArith (Tif Ttrue t1 t2) = return t1
+evalArith (Tif Tfalse t1 t2) = return t2
+evalArith (Tif t1 t2 t3) = do
+  t1' <- evalArith t1
+  return $ Tif t1' t2 t3
+evalArith (Tsucc t) = do
+  t' <- evalArith t
+  return $ Tsucc t'
+evalArith (Tpred Tzero) = return Tzero
+evalArith (Tpred (Tsucc n)) | isNat n = return n
+evalArith (Tpred t) = do
+  t' <- evalArith t
+  return $ Tpred t'
+evalArith (Tiszero Tzero) = return Ttrue
+evalArith (Tiszero (Tsucc n)) | isNat n = return Tfalse
+evalArith (Tiszero t) = do
+  t' <- evalArith t
+  return $ Tiszero t'
+evalArith _ = throwM NoRuleApplies
+
 instance Calculus (Wrapped "arith" StrTree) where
   type Term (Wrapped "arith" StrTree) = StrTree
   type Type (Wrapped "arith" StrTree) = StrTree
@@ -37,29 +58,6 @@ instance Calculus (Wrapped "arith" StrTree) where
         | isNat t = True
         | otherwise = False
 
-  eval () t = catch (eval1 t) $ \case
+  eval () t = catch (evalArith t) $ \case
     NoRuleApplies -> return t
-    where
-      eval1 :: MonadThrow m => StrTree -> m StrTree
-      eval1 (Tif Ttrue t1 t2) = return t1
-      eval1 (Tif Tfalse t1 t2) = return t2
-      eval1 (Tif t1 t2 t3) = do
-        t1' <- eval1 t1
-        return $ Tif t1' t2 t3
-      eval1 (Tsucc t) = do
-        t' <- eval1 t
-        return $ Tsucc t'
-      eval1 (Tpred Tzero) = return Tzero
-      eval1 (Tpred (Tsucc n)) | isNat n = return n
-      eval1 (Tpred t) = do
-        t' <- eval1 t
-        return $ Tpred t'
-      eval1 (Tiszero Tzero) = return Ttrue
-      eval1 (Tiszero (Tsucc n)) | isNat n = return Tfalse
-      eval1 (Tiszero t) = do
-        t' <- eval1 t
-        return $ Tiszero t'
-      eval1 _ = throwM NoRuleApplies
-
-
 
