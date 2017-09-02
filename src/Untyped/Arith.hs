@@ -27,7 +27,7 @@ instance Calculus (Wrapped "arith" StrTree) where
   type Term (Wrapped "arith" StrTree) = StrTree
   type Type (Wrapped "arith" StrTree) = StrTree
   type Context (Wrapped "arith" StrTree) = ()
-
+  
   isValue = go
     where
       go :: StrTree -> Bool
@@ -37,7 +37,7 @@ instance Calculus (Wrapped "arith" StrTree) where
         | isNat t = True
         | otherwise = False
 
-  eval t = catch (eval1 t) $ \case
+  eval () t = catch (eval1 t) $ \case
     NoRuleApplies -> return t
     where
       eval1 :: MonadThrow m => StrTree -> m StrTree
@@ -60,5 +60,6 @@ instance Calculus (Wrapped "arith" StrTree) where
         t' <- eval1 t
         return $ Tiszero t'
       eval1 _ = throwM NoRuleApplies
+
 
 
