@@ -1,27 +1,35 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
 module Untyped.Arith where
 
 import Control.Monad.Catch
-import qualified Data.Tree as T
-import Util
+import Preliminaries
 
-pattern Ttrue = T.Node "true" []
-pattern Tfalse = T.Node "false" []
-pattern Tif b t1 t2 = T.Node "if_then_else" [b, t1, t2]
-pattern Tzero = T.Node "0" []
-pattern Tsucc n = T.Node "succ" [n]
-pattern Tpred n = T.Node "pred" [n]
-pattern Tiszero n = T.Node "iszero" [n]
+pattern Ttrue = NodeF "true" []
+pattern Tfalse = NodeF "false" []
+pattern Tif b t1 t2 = NodeF "if_then_else" [b, t1, t2]
+pattern Tzero = NodeF "0" []
+pattern Tsucc n = NodeF "succ" [n]
+pattern Tpred n = NodeF "pred" [n]
+pattern Tiszero n = NodeF "iszero" [n]
 
-isNat :: ADT -> Bool
-isNat Tzero = True
-isNat (Tsucc t) = isNat t
-isNat _ = False
+instance TreeCalculus (Wrapped "arith" StrTree) where
+  isValue1 Ttrue = True
+  isValue1 Tfalse = True
+  isValue1 t
+    | isNat t = True
+    | otherwise = False
 
-isVal Ttrue = True
-isVal Tfalse = True
-isVal t | isNat t = True
-isVal _ = False
+    where
+      isNat :: TreeF String Bool -> Bool
+      isNat Tzero = True
+      isNat (Tsucc t) = t
+      isNat _ = False
 
+  eval1 = go where
+    go :: StrTreeF (m StrTree) -> m StrTree
+    go (Tif Ttrue t1 t2) = t1
+{-
 
 data ArithEvalException = NoRuleApplies deriving Show
 instance Exception ArithEvalException
@@ -50,4 +58,5 @@ eval1 _ = throwM NoRuleApplies
 eval :: MonadCatch m => ADT -> m ADT
 eval t = catch (eval1 t) $ \case
   NoRuleApplies -> return t
+-}
 
