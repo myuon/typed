@@ -7,12 +7,17 @@ import Control.Monad.Catch
 import qualified Data.Map as M
 import Data.Functor.Foldable
 import Data.Functor.Classes
+import Data.Proxy
 import GHC.TypeLits
 
 class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
   isValue :: trm -> Bool
-  eval :: MonadCatch m => ctx -> trm -> m trm
   typeof :: MonadThrow m => ctx -> trm -> m typ
+  eval1 :: MonadThrow m => ctx -> trm -> m trm
+
+eval :: (Calculus c trm typ ctx, MonadCatch m) => proxy c -> ctx -> trm -> m trm
+eval p ctx t = catch (eval1 ctx t) $ \case
+  NoRuleApplies -> return t
 
 data TreeF a r = NodeF a [r] deriving (Functor, Eq, Show)
 type StrTreeF = TreeF String

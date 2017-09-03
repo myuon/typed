@@ -39,7 +39,7 @@ evalArith (Tiszero t) = do
 evalArith _ = throwM NoRuleApplies
 
 instance Calculus "arith" StrTree StrTree () where
-  isValue = go
+  isValue _ = go
     where
       go :: StrTree -> Bool
       go Ttrue = True
@@ -48,6 +48,5 @@ instance Calculus "arith" StrTree StrTree () where
         | isNat t = True
         | otherwise = False
 
-  eval () t = catch (evalArith t) $ \case
-    NoRuleApplies -> return t
+  eval1 p () t = evalArith t
 

@@ -18,6 +18,7 @@ default-extensions:
 - MultiParamTypeClasses
 - FlexibleInstances
 - TypeSynonymInstances
+- OverloadedLabels
 
 extra-source-files:
 - README.md
