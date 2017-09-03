@@ -17,10 +17,10 @@ isNat Tzero = True
 isNat (Tsucc t) = isNat t
 isNat _ = False
 
-instance Calculus "arith" StrTree StrTree () where
-  data Term "arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
+instance Calculus "untyped.arith" StrTree StrTree () where
+  data Term "untyped.arith" StrTree = UArithTerm StrTree deriving (Eq, Show)
   
-  isValueR rec' (ArithTerm t) = go t
+  isValueR rec' (UArithTerm t) = go t
     where
       go :: StrTree -> Bool
       go Ttrue = True
@@ -29,9 +29,9 @@ instance Calculus "arith" StrTree StrTree () where
         | isNat t = True
         | otherwise = False
 
-  evalR rec' () (ArithTerm t) = fmap ArithTerm $ go t
+  evalR rec' () (UArithTerm t) = fmap UArithTerm $ go t
     where
-      rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
+      rec = fmap (\(UArithTerm t) -> t) . rec' () . UArithTerm
       
       go (Tif Ttrue t1 t2) = return t1
       go (Tif Tfalse t1 t2) = return t2

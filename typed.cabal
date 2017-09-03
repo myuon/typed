@@ -36,6 +36,7 @@ library
     , recursion-schemes
   exposed-modules:
       Preliminaries
+      Typed.Arith
       Typed.Simply
       Typed.SimplyExt
       Untyped.Arith
@@ -58,6 +59,7 @@ test-suite typed
     , tasty
     , tasty-hunit
   other-modules:
+      Typed.ArithTest
       Typed.SimplyExtTest
       Typed.SimplyTest
       Untyped.ArithTest

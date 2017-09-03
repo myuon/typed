@@ -5,11 +5,11 @@ import Control.Monad.Fix
 import qualified Data.Map as M
 import Preliminaries
 import Untyped.Arith
+import Typed.Arith hiding (TypeOfError(..))
 
 type Var = String
 data Binding = NameBind | VarBind StrTree
 
-pattern Tbool = Node "bool" []
 pattern Tarr a b = Node "->" [a,b]
 
 pattern Tnat x = Node x []
