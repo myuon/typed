@@ -7,18 +7,22 @@ import Control.Monad.Catch
 import qualified Data.Map as M
 import Data.Functor.Foldable
 import Data.Functor.Classes
+import Data.Function (fix)
 import Data.Proxy
 import GHC.TypeLits
 
 class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
   data Term c trm
   isValue :: Term c trm -> Bool
-  typeof :: MonadThrow m => ctx -> Term c trm -> m typ
-  eval1 :: MonadThrow m => ctx -> Term c trm -> m (Term c trm)
+  typeof1 :: MonadThrow m => (ctx -> Term c trm -> m typ) -> ctx -> Term c trm -> m typ
+  eval1 :: MonadThrow m => (ctx -> Term c trm -> m (Term c trm)) -> (ctx -> Term c trm -> m (Term c trm))
 
 eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
-eval ctx t = catch (eval1 ctx t) $ \case
+eval ctx t = catch (fix eval1 ctx t) $ \case
   NoRuleApplies -> return t
+
+typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ
+typeof = fix typeof1
 
 data TreeF a r = NodeF a [r] deriving (Functor, Eq, Show)
 type StrTreeF = TreeF String

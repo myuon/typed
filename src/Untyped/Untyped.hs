@@ -19,13 +19,15 @@ instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
     go (Tabs _) = True
     go _ = False
 
-  eval1 ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
+  eval1 rec' ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
+    rec ctx = fmap (\(UntypedTerm t) -> t) . rec' ctx . UntypedTerm
+    
     go ctx (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t
     go ctx (Tapp v t) | isValue (UntypedTerm v) = do
-      t' <- go ctx t
+      t' <- rec ctx t
       return $ Tapp v t'
     go ctx (Tapp tx ty) = do
-      tx' <- go ctx tx
+      tx' <- rec ctx tx
       return $ Tapp tx' ty
     go _ _ = throwM NoRuleApplies
 

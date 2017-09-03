@@ -36,15 +36,17 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
     go Tfalse = True
     go _ = False
 
-  typeof ctx (SimplyTerm t) = go ctx t where
+  typeof1 rec' ctx (SimplyTerm t) = go ctx t where
+    rec ctx = rec' ctx . SimplyTerm
+    
     go ctx Ttrue = return Tbool
     go ctx Tfalse = return Tbool
     go ctx (Tif t a b) = do
-      tt <- go ctx t
+      tt <- rec ctx t
       if tt == Tbool
         then do
-        ta <- go ctx a
-        tb <- go ctx b
+        ta <- rec ctx a
+        tb <- rec ctx b
         if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
         else throwM GuardOfConditionalNotABoolean
     go ctx (Tvar x) = case ctx M.! x of
@@ -52,34 +54,36 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
       VarBind typ -> return typ
     go ctx (Tabs x xt t) = do
       let ctx' = M.insert x (VarBind xt) ctx
-      tt <- go ctx' t
+      tt <- rec ctx' t
       return $ Tarr xt tt
     go ctx (Tapp tx ty) = do
-      txTyp <- go ctx tx
-      tyTyp <- go ctx ty
+      txTyp <- rec ctx tx
+      tyTyp <- rec ctx ty
       case txTyp of
         Tarr txTyp1 txTyp2 ->
           if tyTyp == txTyp1 then return txTyp2
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
 
-  eval1 ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
+  eval1 rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
+    rec ctx = fmap (\(SimplyTerm t) -> t) . rec' ctx . SimplyTerm
+    
     go ctx Ttrue = return Ttrue
     go ctx Tfalse = return Tfalse
     go ctx (Tif Ttrue t1 t2) = return t1
     go ctx (Tif Tfalse t1 t2) = return t2
     go ctx (Tif t1 t2 t3) = do
-      t1' <- go ctx t1
+      t1' <- rec ctx t1
       return $ Tif t1' t2 t3
     go ctx (Tvar x) = return $ Tvar x
     go ctx (Tabs x xt t) = return $ Tabs x xt t
     go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
     go ctx (Tapp tx ty)
       | isValue (SimplyTerm tx) = do
-        ty' <- go ctx ty
+        ty' <- rec ctx ty
         return $ Tapp tx ty'
       | otherwise = do
-        tx' <- go ctx tx
+        tx' <- rec ctx tx
         return $ Tapp tx' ty
     go ctx t = return t
 
