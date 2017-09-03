@@ -38,11 +38,7 @@ evalArith (Tiszero t) = do
   return $ Tiszero t'
 evalArith _ = throwM NoRuleApplies
 
-instance Calculus "arith" where
-  type Term "arith" = StrTree
-  type Type "arith" = StrTree
-  type Context "arith" = ()
-  
+instance Calculus "arith" StrTree StrTree () where
   isValue = go
     where
       go :: StrTree -> Bool

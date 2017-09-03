@@ -27,11 +27,7 @@ data TypeOfError
 
 instance Exception TypeOfError
 
-instance Calculus "simply" where
-  type Term "simply" = StrTree
-  type Type "simply" = StrTree
-  type Context "simply" = M.Map Var Binding
-
+instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
   isValue (Tabs _ _ _) = True
   isValue Ttrue = True
   isValue Tfalse = True
@@ -79,7 +75,7 @@ instance Calculus "simply" where
           | otherwise = Tabs y yt (go t)
         go (Tapp t1 t2) = Tapp (go t1) (go t2)
 
-      eval1 :: MonadThrow m => Context "simply" -> StrTree -> m StrTree
+      eval1 :: MonadThrow m => M.Map Var Binding -> StrTree -> m StrTree
       eval1 ctx = go where
         go Ttrue = return Ttrue
         go Tfalse = return Tfalse

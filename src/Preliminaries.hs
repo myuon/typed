@@ -1,6 +1,6 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Preliminaries where
 
 import Control.Monad.Catch
@@ -9,14 +9,10 @@ import Data.Functor.Foldable
 import Data.Functor.Classes
 import GHC.TypeLits
 
-class Calculus (c :: Symbol) where
-  type Term c
-  type Type c
-  type Context c
-
-  isValue :: Term c -> Bool
-  eval :: MonadCatch m => Context c -> Term c -> m (Term c)
-  typeof :: MonadThrow m => Context c -> Term c -> m (Type c)
+class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
+  isValue :: trm -> Bool
+  eval :: MonadCatch m => ctx -> trm -> m trm
+  typeof :: MonadThrow m => ctx -> trm -> m typ
 
 data TreeF a r = NodeF a [r] deriving (Functor, Eq, Show)
 type StrTreeF = TreeF String

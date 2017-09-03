@@ -43,11 +43,7 @@ evalUntyped ctx = go where
   substTop :: StrTree -> StrTree -> StrTree
   substTop s = shift (-1) . subst 0 (shift 1 s)
 
-instance Calculus "untyped" where
-  type Term "untyped" = StrTree
-  type Type "untyped" = StrTree
-  type Context "untyped" = M.Map Var Binding
-
+instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
   isValue (Tabs _) = True
   isValue _ = False
 
