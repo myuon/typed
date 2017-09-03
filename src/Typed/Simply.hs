@@ -28,12 +28,15 @@ data TypeOfError
 instance Exception TypeOfError
 
 instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
-  isValue _ (Tabs _ _ _) = True
-  isValue _ Ttrue = True
-  isValue _ Tfalse = True
-  isValue _ _ = False
+  data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
-  typeof _ = go where
+  isValue (SimplyTerm t) = go t where
+    go (Tabs _ _ _) = True
+    go Ttrue = True
+    go Tfalse = True
+    go _ = False
+
+  typeof ctx (SimplyTerm t) = go ctx t where
     go ctx Ttrue = return Tbool
     go ctx Tfalse = return Tbool
     go ctx (Tif t a b) = do
@@ -60,25 +63,25 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
 
-  eval1 p ctx = go where
-    go Ttrue = return Ttrue
-    go Tfalse = return Tfalse
-    go (Tif Ttrue t1 t2) = return t1
-    go (Tif Tfalse t1 t2) = return t2
-    go (Tif t1 t2 t3) = do
-      t1' <- eval1 p ctx t1
+  eval1 ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
+    go ctx Ttrue = return Ttrue
+    go ctx Tfalse = return Tfalse
+    go ctx (Tif Ttrue t1 t2) = return t1
+    go ctx (Tif Tfalse t1 t2) = return t2
+    go ctx (Tif t1 t2 t3) = do
+      t1' <- go ctx t1
       return $ Tif t1' t2 t3
-    go (Tvar x) = return $ Tvar x
-    go (Tabs x xt t) = return $ Tabs x xt t
-    go (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
-    go (Tapp tx ty)
-      | isValue p tx = do
-        ty' <- eval1 p ctx ty
+    go ctx (Tvar x) = return $ Tvar x
+    go ctx (Tabs x xt t) = return $ Tabs x xt t
+    go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
+    go ctx (Tapp tx ty)
+      | isValue (SimplyTerm tx) = do
+        ty' <- go ctx ty
         return $ Tapp tx ty'
       | otherwise = do
-        tx' <- eval1 p ctx tx
+        tx' <- go ctx tx
         return $ Tapp tx' ty
-    go t = return t
+    go ctx t = return t
 
     subst :: Var -> StrTree -> StrTree -> StrTree
     subst x v = go where

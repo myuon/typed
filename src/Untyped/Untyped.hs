@@ -13,18 +13,21 @@ data Binding = NameBind
 type Var = String
 
 instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
-  isValue _ (Tabs _) = True
-  isValue _ _ = False
+  data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)
 
-  eval1 p ctx = go where
-    go (Tapp (Tabs t) v) | isValue p v = return $ substTop v t
-    go (Tapp v t) | isValue p v = do
-      t' <- eval1 p ctx t
+  isValue (UntypedTerm t) = go t where
+    go (Tabs _) = True
+    go _ = False
+
+  eval1 ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
+    go ctx (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t
+    go ctx (Tapp v t) | isValue (UntypedTerm v) = do
+      t' <- go ctx t
       return $ Tapp v t'
-    go (Tapp tx ty) = do
-      tx' <- eval1 p ctx tx
+    go ctx (Tapp tx ty) = do
+      tx' <- go ctx tx
       return $ Tapp tx' ty
-    go _ = throwM NoRuleApplies
+    go _ _ = throwM NoRuleApplies
 
     shift :: Int -> StrTree -> StrTree
     shift d = go 0

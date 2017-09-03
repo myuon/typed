@@ -11,12 +11,13 @@ import Data.Proxy
 import GHC.TypeLits
 
 class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
-  isValue :: trm -> Bool
-  typeof :: MonadThrow m => ctx -> trm -> m typ
-  eval1 :: MonadThrow m => ctx -> trm -> m trm
+  data Term c trm
+  isValue :: Term c trm -> Bool
+  typeof :: MonadThrow m => ctx -> Term c trm -> m typ
+  eval1 :: MonadThrow m => ctx -> Term c trm -> m (Term c trm)
 
-eval :: (Calculus c trm typ ctx, MonadCatch m) => proxy c -> ctx -> trm -> m trm
-eval p ctx t = catch (eval1 ctx t) $ \case
+eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
+eval ctx t = catch (eval1 ctx t) $ \case
   NoRuleApplies -> return t
 
 data TreeF a r = NodeF a [r] deriving (Functor, Eq, Show)
