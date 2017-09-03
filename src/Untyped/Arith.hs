@@ -1,4 +1,14 @@
-module Untyped.Arith where
+module Untyped.Arith
+  ( pattern Ttrue
+  , pattern Tfalse
+  , pattern Tif
+  , pattern Tzero
+  , pattern Tsucc
+  , pattern Tpred
+  , pattern Tiszero
+  , isNat
+  , Term(ArithTerm)
+  ) where
 
 import Control.Monad.Catch
 import Data.Functor.Foldable
@@ -18,9 +28,9 @@ isNat (Tsucc t) = isNat t
 isNat _ = False
 
 instance Calculus "untyped.arith" StrTree StrTree () where
-  data Term "untyped.arith" StrTree = UArithTerm StrTree deriving (Eq, Show)
+  data Term "untyped.arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
   
-  isValueR rec' (UArithTerm t) = go t
+  isValueR rec' (ArithTerm t) = go t
     where
       go :: StrTree -> Bool
       go Ttrue = True
@@ -29,9 +39,9 @@ instance Calculus "untyped.arith" StrTree StrTree () where
         | isNat t = True
         | otherwise = False
 
-  evalR rec' () (UArithTerm t) = fmap UArithTerm $ go t
+  evalR rec' () (ArithTerm t) = fmap ArithTerm $ go t
     where
-      rec = fmap (\(UArithTerm t) -> t) . rec' () . UArithTerm
+      rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
       
       go (Tif Ttrue t1 t2) = return t1
       go (Tif Tfalse t1 t2) = return t2

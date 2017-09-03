@@ -4,17 +4,16 @@ import Control.Monad.Catch
 import Control.Monad.Fix
 import qualified Data.Map as M
 import Preliminaries
-import Untyped.Arith
-import Typed.Arith hiding (TypeOfError(..))
+import Typed.Arith
 
 type Var = String
 data Binding = NameBind | VarBind StrTree
 
 pattern Tarr a b = Node "->" [a,b]
 
-pattern Tnat x = Node x []
-pattern Tvar x = Node "var" [Tnat x]
-pattern Tabs x xt t = Node "lambda" [Tnat x,xt,t]
+pattern Tval x = Node x []
+pattern Tvar x = Node "var" [Tval x]
+pattern Tabs x xt t = Node "lambda" [Tval x,xt,t]
 pattern Tapp tx ty = Node "app" [tx,ty]
 
 data TypeOfError
