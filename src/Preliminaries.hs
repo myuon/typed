@@ -21,7 +21,7 @@ isValue :: (Calculus c trm typ ctx) => Term c trm -> Bool
 isValue = fix isValueR
 
 eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
-eval ctx t = catch (fix evalR ctx t) $ \case
+eval ctx t = let eval1 = fix evalR in catch (eval1 ctx t >>= eval ctx) $ \case
   NoRuleApplies -> return t
 
 typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ

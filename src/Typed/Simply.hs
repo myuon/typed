@@ -17,9 +17,7 @@ pattern Tabs x xt t = Node "lambda" [Tval x,xt,t]
 pattern Tapp tx ty = Node "app" [tx,ty]
 
 data TypeOfError
-  = ArmsOfConditionalHasDifferentTypes
-  | GuardOfConditionalNotABoolean
-  | WrongKindOfBindingForVariable
+  = WrongKindOfBindingForVariable
   | ParameterTypeMismatch
   | ArrowTypeExpected
   deriving Show
@@ -31,23 +29,11 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
 
   isValueR rec' (SimplyTerm t) = go t where
     go (Tabs _ _ _) = True
-    go Ttrue = True
-    go Tfalse = True
-    go _ = False
+    go t = isValueR (rec' . (\(ArithTerm t) -> SimplyTerm t)) (ArithTerm t)
 
   typeofR rec' ctx (SimplyTerm t) = go ctx t where
     rec ctx = rec' ctx . SimplyTerm
     
-    go ctx Ttrue = return Tbool
-    go ctx Tfalse = return Tbool
-    go ctx (Tif t a b) = do
-      tt <- rec ctx t
-      if tt == Tbool
-        then do
-        ta <- rec ctx a
-        tb <- rec ctx b
-        if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
-        else throwM GuardOfConditionalNotABoolean
     go ctx (Tvar x) = case ctx M.! x of
       NameBind -> throwM WrongKindOfBindingForVariable
       VarBind typ -> return typ
@@ -63,17 +49,11 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
           if tyTyp == txTyp1 then return txTyp2
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
+    go ctx t = typeofR (\() (ArithTerm t) -> rec' ctx (SimplyTerm t)) () (ArithTerm t)
 
   evalR rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
     rec ctx = fmap (\(SimplyTerm t) -> t) . rec' ctx . SimplyTerm
     
-    go ctx Ttrue = return Ttrue
-    go ctx Tfalse = return Tfalse
-    go ctx (Tif Ttrue t1 t2) = return t1
-    go ctx (Tif Tfalse t1 t2) = return t2
-    go ctx (Tif t1 t2 t3) = do
-      t1' <- rec ctx t1
-      return $ Tif t1' t2 t3
     go ctx (Tvar x) = return $ Tvar x
     go ctx (Tabs x xt t) = return $ Tabs x xt t
     go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
@@ -84,7 +64,7 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
       | otherwise = do
         tx' <- rec ctx tx
         return $ Tapp tx' ty
-    go ctx t = return t
+    go ctx t = fmap (\(ArithTerm t) -> t) $ evalR (\() (ArithTerm t) -> fmap ArithTerm $ rec ctx t) () (ArithTerm t)
 
     subst :: Var -> StrTree -> StrTree -> StrTree
     subst x v = go where
