@@ -1,6 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DataKinds #-}
 module Untyped.Arith where
 
 import Control.Monad.Catch
@@ -14,9 +11,6 @@ pattern Tzero = Node "0" []
 pattern Tsucc n = Node "succ" [n]
 pattern Tpred n = Node "pred" [n]
 pattern Tiszero n = Node "iszero" [n]
-
-data ArithEvalException = NoRuleApplies deriving Show
-instance Exception ArithEvalException
 
 isNat :: StrTree -> Bool
 isNat Tzero = True
@@ -44,10 +38,10 @@ evalArith (Tiszero t) = do
   return $ Tiszero t'
 evalArith _ = throwM NoRuleApplies
 
-instance Calculus (Wrapped "arith" StrTree) where
-  type Term (Wrapped "arith" StrTree) = StrTree
-  type Type (Wrapped "arith" StrTree) = StrTree
-  type Context (Wrapped "arith" StrTree) = ()
+instance Calculus "arith" where
+  type Term "arith" = StrTree
+  type Type "arith" = StrTree
+  type Context "arith" = ()
   
   isValue = go
     where

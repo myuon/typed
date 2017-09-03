@@ -1,9 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 module Untyped.Untyped where
 
 import Control.Monad.Catch
@@ -18,13 +12,10 @@ pattern Tapp tx ty = Node "app" [tx,ty]
 data Binding = NameBind
 type Var = String
 
-data UntypedEvalException = NoRuleApplies deriving Show
-instance Exception UntypedEvalException
-
 evalUntyped :: MonadThrow m => M.Map Var Binding -> StrTree -> m StrTree
 evalUntyped ctx = go where
-  go (Tapp (Tabs t) v) | isValue @(Wrapped "untyped" StrTree) v = return $ substTop v t
-  go (Tapp v t) | isValue @(Wrapped "untyped" StrTree) v = do
+  go (Tapp (Tabs t) v) | isValue @"untyped" v = return $ substTop v t
+  go (Tapp v t) | isValue @"untyped" v = do
     t' <- evalUntyped ctx t
     return $ Tapp v t'
   go (Tapp tx ty) = do
@@ -52,10 +43,10 @@ evalUntyped ctx = go where
   substTop :: StrTree -> StrTree -> StrTree
   substTop s = shift (-1) . subst 0 (shift 1 s)
 
-instance Calculus (Wrapped "untyped" StrTree) where
-  type Term (Wrapped "untyped" StrTree) = StrTree
-  type Type (Wrapped "untyped" StrTree) = StrTree
-  type Context (Wrapped "untyped" StrTree) = M.Map Var Binding
+instance Calculus "untyped" where
+  type Term "untyped" = StrTree
+  type Type "untyped" = StrTree
+  type Context "untyped" = M.Map Var Binding
 
   isValue (Tabs _) = True
   isValue _ = False

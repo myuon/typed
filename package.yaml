@@ -12,6 +12,12 @@ github: myuon/typed
 default-extensions:
 - PatternSynonyms
 - LambdaCase
+- DataKinds
+- TypeFamilies
+- TypeApplications
+- MultiParamTypeClasses
+- FlexibleInstances
+- TypeSynonymInstances
 
 extra-source-files:
 - README.md

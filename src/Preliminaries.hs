@@ -1,13 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeFamilies #-}
 module Preliminaries where
 
 import Control.Monad.Catch
@@ -16,7 +9,7 @@ import Data.Functor.Foldable
 import Data.Functor.Classes
 import GHC.TypeLits
 
-class Calculus c where
+class Calculus (c :: Symbol) where
   type Term c
   type Type c
   type Context c
@@ -37,8 +30,8 @@ instance Show1 (TreeF String) where
 instance Eq1 (TreeF String) where
   liftEq f (NodeF a r) (NodeF b r') = a == b && length r == length r' && all (uncurry f) (zip r r')
 
-newtype Wrapped (symbol :: Symbol) a = Wrapped { unWrapped :: a }
-type instance Base (Wrapped symbol a) = Base a
-
 pattern Node a r = Fix (NodeF a r)
+
+data EvalError = NoRuleApplies deriving Show
+instance Exception EvalError
 
