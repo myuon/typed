@@ -13,16 +13,19 @@ import GHC.TypeLits
 
 class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
   data Term c trm
-  isValue :: Term c trm -> Bool
-  typeof1 :: MonadThrow m => (ctx -> Term c trm -> m typ) -> ctx -> Term c trm -> m typ
-  eval1 :: MonadThrow m => (ctx -> Term c trm -> m (Term c trm)) -> (ctx -> Term c trm -> m (Term c trm))
+  isValueR :: (Term c trm -> Bool) -> Term c trm -> Bool
+  typeofR :: MonadThrow m => (ctx -> Term c trm -> m typ) -> ctx -> Term c trm -> m typ
+  evalR :: MonadThrow m => (ctx -> Term c trm -> m (Term c trm)) -> (ctx -> Term c trm -> m (Term c trm))
+
+isValue :: (Calculus c trm typ ctx) => Term c trm -> Bool
+isValue = fix isValueR
 
 eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
-eval ctx t = catch (fix eval1 ctx t) $ \case
+eval ctx t = catch (fix evalR ctx t) $ \case
   NoRuleApplies -> return t
 
 typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ
-typeof = fix typeof1
+typeof = fix typeofR
 
 data TreeF a r = NodeF a [r] deriving (Functor, Eq, Show)
 type StrTreeF = TreeF String

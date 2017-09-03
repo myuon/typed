@@ -30,13 +30,13 @@ instance Exception TypeOfError
 instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
   data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
-  isValue (SimplyTerm t) = go t where
+  isValueR rec' (SimplyTerm t) = go t where
     go (Tabs _ _ _) = True
     go Ttrue = True
     go Tfalse = True
     go _ = False
 
-  typeof1 rec' ctx (SimplyTerm t) = go ctx t where
+  typeofR rec' ctx (SimplyTerm t) = go ctx t where
     rec ctx = rec' ctx . SimplyTerm
     
     go ctx Ttrue = return Tbool
@@ -65,7 +65,7 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
 
-  eval1 rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
+  evalR rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
     rec ctx = fmap (\(SimplyTerm t) -> t) . rec' ctx . SimplyTerm
     
     go ctx Ttrue = return Ttrue

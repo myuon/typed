@@ -15,11 +15,11 @@ type Var = String
 instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
   data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)
 
-  isValue (UntypedTerm t) = go t where
+  isValueR rec' (UntypedTerm t) = go t where
     go (Tabs _) = True
     go _ = False
 
-  eval1 rec' ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
+  evalR rec' ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
     rec ctx = fmap (\(UntypedTerm t) -> t) . rec' ctx . UntypedTerm
     
     go ctx (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t

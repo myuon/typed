@@ -20,7 +20,7 @@ isNat _ = False
 instance Calculus "arith" StrTree StrTree () where
   data Term "arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
   
-  isValue (ArithTerm t) = go t
+  isValueR rec' (ArithTerm t) = go t
     where
       go :: StrTree -> Bool
       go Ttrue = True
@@ -29,7 +29,7 @@ instance Calculus "arith" StrTree StrTree () where
         | isNat t = True
         | otherwise = False
 
-  eval1 rec' () (ArithTerm t) = fmap ArithTerm $ go t
+  evalR rec' () (ArithTerm t) = fmap ArithTerm $ go t
     where
       rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
       
