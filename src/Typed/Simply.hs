@@ -84,4 +84,5 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
         | x == y = Tabs y yt t
         | otherwise = Tabs y yt (go t)
       go (Tapp t1 t2) = Tapp (go t1) (go t2)
+      go t = t
 
