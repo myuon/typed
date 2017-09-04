@@ -4,8 +4,6 @@ import Data.Either
 import qualified Data.Map as M
 import Test.Tasty.HUnit
 import Preliminaries
-import Untyped.Arith
-import Typed.Arith
 import Typed.Simply
 
 test_typeof =

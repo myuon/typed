@@ -10,7 +10,6 @@ pattern Tabs t = Node "lambda" [t]
 pattern Tapp tx ty = Node "app" [tx,ty]
 
 data Binding = NameBind
-type Var = String
 
 instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
   data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)

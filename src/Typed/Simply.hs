@@ -1,12 +1,20 @@
-module Typed.Simply where
+module Typed.Simply
+  ( module M
+  , pattern Tarr
+  , pattern Tval
+  , pattern Tvar
+  , pattern Tabs
+  , pattern Tapp
+  , Term(SimplyTerm)
+  , Binding(..)
+  ) where
 
 import Control.Monad.Catch
 import Control.Monad.Fix
 import qualified Data.Map as M
 import Preliminaries
-import Typed.Arith
+import Typed.Arith as M
 
-type Var = String
 data Binding = NameBind | VarBind StrTree
 
 pattern Tarr a b = Node "->" [a,b]

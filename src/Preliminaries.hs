@@ -44,3 +44,6 @@ pattern Node a r = Fix (NodeF a r)
 data EvalError = NoRuleApplies deriving Show
 instance Exception EvalError
 
+
+type Var = String
+
