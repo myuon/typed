@@ -11,17 +11,23 @@ import Data.Function (fix)
 import Data.Proxy
 import GHC.TypeLits
 
+type Var = String
+
 class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
   data Term c trm
   isValueR :: (Term c trm -> Bool) -> Term c trm -> Bool
   typeofR :: MonadThrow m => (ctx -> Term c trm -> m typ) -> ctx -> Term c trm -> m typ
-  evalR :: MonadThrow m => (ctx -> Term c trm -> m (Term c trm)) -> (ctx -> Term c trm -> m (Term c trm))
+  substR :: (Var -> Term c trm -> Term c trm -> Term c trm) -> Var -> Term c trm -> Term c trm -> Term c trm
+  evalR :: MonadThrow m => (Var -> Term c trm -> Term c trm -> Term c trm) -> (ctx -> Term c trm -> m (Term c trm)) -> (ctx -> Term c trm -> m (Term c trm))
 
 isValue :: (Calculus c trm typ ctx) => Term c trm -> Bool
 isValue = fix isValueR
 
+subst :: Calculus c trm typ ctx => Var -> Term c trm -> Term c trm -> Term c trm
+subst = fix substR
+
 eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
-eval ctx t = let eval1 = fix evalR in catch (eval1 ctx t >>= eval ctx) $ \case
+eval ctx t = let eval1 = fix (evalR subst) in catch (eval1 ctx t >>= eval ctx) $ \case
   NoRuleApplies -> return t
 
 typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ
@@ -43,7 +49,4 @@ pattern Node a r = Fix (NodeF a r)
 
 data EvalError = NoRuleApplies deriving Show
 instance Exception EvalError
-
-
-type Var = String
 

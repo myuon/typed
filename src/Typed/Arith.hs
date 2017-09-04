@@ -57,7 +57,18 @@ instance Calculus "typed.arith" StrTree StrTree () where
         Tnat -> return Tnat
         _ -> throwM ExpectedANat
 
-  evalR rec' ctx (ArithTerm t) = fmap ArithTerm $ go t where
+  substR rec' v p (ArithTerm t) = ArithTerm $ go t where
+    rec = (\(ArithTerm t) -> t) . rec' v p . ArithTerm
+
+    go Ttrue = Ttrue
+    go Tfalse = Tfalse
+    go (Tif b t1 t2) = Tif (rec b) (rec t1) (rec t2)
+    go (Tsucc t) = Tsucc (rec t)
+    go (Tpred t) = Tpred (rec t)
+    go (Tiszero t) = Tiszero (rec t)
+    go t = error $ "subst: " ++ show t
+
+  evalR _ rec' ctx (ArithTerm t) = fmap ArithTerm $ go t where
     rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
 
     go (Tif Ttrue t1 t2) = return t1

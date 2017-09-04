@@ -38,7 +38,7 @@ instance Calculus "untyped.arith" StrTree StrTree () where
       | isNat t = True
       | otherwise = False
 
-  evalR rec' () (ArithTerm t) = fmap ArithTerm $ go t where
+  evalR _ rec' () (ArithTerm t) = fmap ArithTerm $ go t where
     rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
 
     go (Tif Ttrue t1 t2) = return t1

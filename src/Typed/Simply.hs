@@ -59,12 +59,24 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
         _ -> throwM ArrowTypeExpected
     go ctx t = typeofR (\() (ArithTerm t) -> rec' ctx (SimplyTerm t)) () (ArithTerm t)
 
-  evalR rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
+  substR rec' v (SimplyTerm p) (SimplyTerm t) = SimplyTerm $ go t where
+    rec = (\(SimplyTerm t) -> t) . rec' v (SimplyTerm p) . SimplyTerm
+
+    go (Tvar y)
+      | v == y = p
+      | otherwise = Tvar y
+    go (Tabs y yt t)
+      | v == y = Tabs y yt t
+      | otherwise = Tabs y yt (rec t)
+    go (Tapp t1 t2) = Tapp (go t1) (go t2)
+    go t = (\(ArithTerm t) -> t) $ substR (\v (ArithTerm p) (ArithTerm t) -> (\(SimplyTerm t) -> ArithTerm t) $ rec' v (SimplyTerm p) (SimplyTerm t)) v (ArithTerm p) (ArithTerm t)
+
+  evalR sbt rec' ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
     rec ctx = fmap (\(SimplyTerm t) -> t) . rec' ctx . SimplyTerm
     
     go ctx (Tvar x) = return $ Tvar x
     go ctx (Tabs x xt t) = return $ Tabs x xt t
-    go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
+    go ctx (Tapp (Tabs x typ11 t12) v) = return $ (\(SimplyTerm t) -> t) $ sbt x (SimplyTerm v) (SimplyTerm t12)
     go ctx (Tapp tx ty)
       | isValue (SimplyTerm tx) = do
         ty' <- rec ctx ty
@@ -72,17 +84,5 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
       | otherwise = do
         tx' <- rec ctx tx
         return $ Tapp tx' ty
-    go ctx t = fmap (\(ArithTerm t) -> t) $ evalR (\() (ArithTerm t) -> fmap ArithTerm $ rec ctx t) () (ArithTerm t)
-
-    subst :: Var -> StrTree -> StrTree -> StrTree
-    subst x v = go where
-      go (Tif b t1 t2) = Tif (go b) (go t1) (go t2)
-      go (Tvar y)
-        | x == y = v
-        | otherwise = Tvar y
-      go (Tabs y yt t)
-        | x == y = Tabs y yt t
-        | otherwise = Tabs y yt (go t)
-      go (Tapp t1 t2) = Tapp (go t1) (go t2)
-      go t = t
+    go ctx t = fmap (\(ArithTerm t) -> t) $ evalR (\v (ArithTerm p) (ArithTerm t) -> (\(SimplyTerm t) -> ArithTerm t) $ sbt v (SimplyTerm p) (SimplyTerm t)) (\() (ArithTerm t) -> fmap ArithTerm $ rec ctx t) () (ArithTerm t)
 
