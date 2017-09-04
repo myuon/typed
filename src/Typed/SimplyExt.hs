@@ -1,9 +1,12 @@
-module Typed.SimplyExt where
+module Typed.SimplyExt
+  ( module Typed.Simply
+  , pattern Tbase
+  , Term(SimplyExtTerm)
+  ) where
 
 import Control.Monad.Catch
 import qualified Data.Map as M
 import Preliminaries
-import Untyped.Arith
 import Typed.Simply
 
 pattern Tbase = Node "A" []
@@ -20,19 +23,14 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go Tstar = True
     go t = isValue (SimplyTerm t)
 
-{-
-subst :: Var -> ADT -> ADT -> ADT
-subst x v = go where
-  go (Tif b t1 t2) = Tif (go b) (go t1) (go t2)
-  go (Tvar y)
-    | x == y = v
-    | otherwise = Tvar y
-  go (Tabs y yt t)
-    | x == y = Tabs y yt t
-    | otherwise = Tabs y yt (go t)
-  go (Tapp t1 t2) = Tapp (go t1) (go t2)
-  go t = t
+  typeofR rec' ctx (SimplyExtTerm t) = go ctx t where
+    rec ctx = rec' ctx . SimplyExtTerm
+
+    go ctx t = typeofR (\ctx' (SimplyTerm t) -> rec' ctx' (SimplyExtTerm t)) ctx (SimplyTerm t)
+
+  evalR rec' ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
+    rec ctx = fmap (\(SimplyExtTerm t) -> t) . rec' ctx . SimplyExtTerm
+
+    go ctx t = fmap (\(SimplyTerm t) -> t) $ evalR (\ctx' (SimplyTerm t) -> fmap (\(SimplyExtTerm t) -> SimplyTerm t) $ rec' ctx' (SimplyExtTerm t)) ctx (SimplyTerm t)
 
 
-
--}
