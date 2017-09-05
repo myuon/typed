@@ -10,6 +10,9 @@ module Typed.SimplyExt
   , pattern Tpr1
   , pattern Tpr2
   , pattern Kpair
+  , pattern Ttuple
+  , pattern Tproj
+  , pattern Ktuple
   , Term(SimplyExtTerm)
   ) where
 
@@ -35,7 +38,7 @@ pattern Tpr2 x = T.Node "_.2" [x]
 pattern Kpair x y = T.Node "(_,_)" [x,y]
 
 pattern Ttuple xs = T.Node "{_}" xs
-pattern Tproj i = T.Node "_.i" [i]
+pattern Tproj i t = T.Node i [t]
 pattern Ktuple xs = T.Node "(_)" xs
 
 data TypeOfError
@@ -56,6 +59,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
   isValue (SimplyExtTerm t) = go t where
     go Tunit = True
     go (Tpair t1 t2) = go t1 && go t2
+    go (Ttuple ts) = all (isValue . SimplyExtTerm) ts
     go t = isValue (SimplyTerm t)
 
   typeof ctx (SimplyExtTerm t) = go ctx t where
@@ -121,6 +125,14 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tT of
         Kpair tT1 tT2 -> return tT2
         z -> throwM $ ExpectedType (Kpair (T.Node "_" []) (T.Node "_" [])) z
+    go ctx (Ttuple ts) = do
+      tsTs <- mapM (\t -> go ctx t) ts
+      return $ Ktuple tsTs
+    go ctx (Tproj i t) = do
+      tT <- go ctx t
+      case tT of
+        Ktuple tTs -> return $ tTs !! (read i)
+        z -> throwM $ ExpectedType (Ktuple []) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -166,6 +178,12 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tpair t1 t2)
       | isValue (SimplyExtTerm t1) = Tpair t1 <$> go ctx t2
       | otherwise = Tpair <$> (go ctx t1) <*> return t2
+    go ctx (Tproj i (Ttuple vs)) | all (isValue . SimplyExtTerm) vs = return $ vs !! (read i)
+    go ctx (Tproj i t) = Tproj i <$> go ctx t
+    go ctx (Ttuple vs) = do
+      let (a,b:bs) = span (isValue . SimplyExtTerm) vs
+      b' <- go ctx b
+      return $ Ttuple $ a ++ [b'] ++ bs
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
