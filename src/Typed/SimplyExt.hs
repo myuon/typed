@@ -13,6 +13,11 @@ module Typed.SimplyExt
   , pattern Ttuple
   , pattern Tproj
   , pattern Ktuple
+  , pattern Tfield
+  , pattern Trecord
+  , pattern Kfield
+  , pattern Krecord
+  , pattern Tprojf
   , Term(SimplyExtTerm)
   ) where
 
@@ -38,8 +43,14 @@ pattern Tpr2 x = T.Node "_.2" [x]
 pattern Kpair x y = T.Node "(_,_)" [x,y]
 
 pattern Ttuple xs = T.Node "{_}" xs
-pattern Tproj i t = T.Node i [t]
+pattern Tproj i t = T.Node "_.i" [Tval i,t]
 pattern Ktuple xs = T.Node "(_)" xs
+
+pattern Tfield l t = T.Node "field: _ = _" [Tval l,t]
+pattern Trecord lts = T.Node "record" lts
+pattern Kfield l t = T.Node "field: _ : _" [Tval l,t]
+pattern Krecord lts = T.Node "record type" lts
+pattern Tprojf l t = T.Node "_.label" [Tval l,t]
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
@@ -133,6 +144,14 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tT of
         Ktuple tTs -> return $ tTs !! (read i)
         z -> throwM $ ExpectedType (Ktuple []) z
+    go ctx (Trecord lts) = do
+      tsT <- mapM (\(Tfield l t) -> Kfield l <$> go ctx t) lts
+      return $ Krecord tsT
+    go ctx (Tprojf l t) = do
+      tT <- go ctx t
+      case tT of
+        Krecord tTs -> return $ (\(Kfield u t) -> t) $ head $ filter (\(Kfield u t) -> l == u) tTs
+        z -> throwM $ ExpectedType (Krecord [Kfield l (Tval "_")]) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -184,12 +203,20 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       let (a,b:bs) = span (isValue . SimplyExtTerm) vs
       b' <- go ctx b
       return $ Ttuple $ a ++ [b'] ++ bs
+    go ctx (Tprojf l (Trecord lts))
+      | all (\(Tfield l t) -> isValue (SimplyExtTerm t)) lts = return $ (\(Tfield u t) -> t) $ head $ filter (\(Tfield u t) -> l == u) lts
+      | otherwise = Tprojf l <$> go ctx (Trecord lts)
+    go ctx (Trecord vs) = do
+      let (a,Tfield lb b:bs) = span (\(Tfield l v) -> isValue (SimplyExtTerm v)) vs
+      b' <- go ctx b
+      return $ Trecord $ a ++ [Tfield lb b'] ++ bs
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
       go Ttrue = Ttrue
       go Tfalse = Tfalse
       go (Tif b t1 t2) = Tif (go b) (go t1) (go t2)
+      go Tzero = Tzero
       go (Tsucc t) = Tsucc (go t)
       go (Tpred t) = Tpred (go t)
       go (Tiszero t) = Tiszero (go t)
@@ -208,4 +235,8 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       go (Tpair t1 t2) = Tpair (go t1) (go t2)
       go (Tpr1 t) = Tpr1 (go t)
       go (Tpr2 t) = Tpr2 (go t)
+      go (Tproj i t) = Tproj i (go t)
+      go (Ttuple vs) = Ttuple (fmap go vs)
+      go (Trecord rs) = Trecord (fmap go rs)
+      go (Tprojf l t) = Tprojf l (go t)
 

@@ -14,6 +14,7 @@ test_typeof =
   , testCase "|- {pred 1, if true then false else false} : (nat,bool)" $ rights [typeof M.empty (SimplyExtTerm $ Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse))] @?= [Kpair Knat Kbool]
   , testCase "|- (λx:(nat,bool). x.2) {pred 1, if true then false else false} : bool" $ rights [typeof M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [Kbool]
   , testCase "|- {1,2,true} : (nat,nat,bool)" $ rights [typeof M.empty (SimplyExtTerm $ Ttuple [Tsucc Tzero, Tsucc (Tsucc Tzero), Ttrue])] @?= [Ktuple [Knat, Knat, Kbool]]
+  , testCase "|- {x=0, isHoge=true} : {x:nat, isHoge:bool}" $ rights [typeof M.empty (SimplyExtTerm $ Trecord [Tfield "x" Tzero, Tfield "isHoge" Ttrue])] @?= [Krecord [Kfield "x" Knat, Kfield "isHoge" Kbool]]
   ]
 
 test_eval =
@@ -21,6 +22,7 @@ test_eval =
   , testCase "let x=2 in succ x -> 3" $ rights [eval M.empty (SimplyExtTerm $ Tlet "x" (Tsucc (Tsucc Tzero)) (Tsucc (Tvar "x")))] @?= [SimplyExtTerm (Tsucc (Tsucc (Tsucc Tzero)))]
   , testCase "{pred 1, if true then false else false}.1 -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tpr1 (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tzero] 
   , testCase "(λx:(nat,bool). x.2) {pred 1, if true then false else false} -> false" $ rights [eval M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tfalse]
+  , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
  ]
 
 
