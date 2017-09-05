@@ -1,32 +1,31 @@
 module Untyped.Untyped where
 
 import Control.Monad.Catch
+import qualified Data.Tree as T
 import qualified Data.Map as M
 import Preliminaries
 
-pattern Tnat x = Node x []
-pattern Tvar x = Node "var" [Tnat x]
-pattern Tabs t = Node "lambda" [t]
-pattern Tapp tx ty = Node "app" [tx,ty]
+pattern Tnat x = T.Node x []
+pattern Tvar x = T.Node "var" [Tnat x]
+pattern Tabs t = T.Node "lambda" [t]
+pattern Tapp tx ty = T.Node "app" [tx,ty]
 
 data Binding = NameBind
 
 instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
   data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)
 
-  isValueR rec' (UntypedTerm t) = go t where
+  isValue (UntypedTerm t) = go t where
     go (Tabs _) = True
     go _ = False
 
-  evalR _ rec' ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
-    rec ctx = fmap (\(UntypedTerm t) -> t) . rec' ctx . UntypedTerm
-    
+  eval1 ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
     go ctx (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t
     go ctx (Tapp v t) | isValue (UntypedTerm v) = do
-      t' <- rec ctx t
+      t' <- go ctx t
       return $ Tapp v t'
     go ctx (Tapp tx ty) = do
-      tx' <- rec ctx tx
+      tx' <- go ctx tx
       return $ Tapp tx' ty
     go _ _ = throwM NoRuleApplies
 

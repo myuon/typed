@@ -11,16 +11,16 @@ module Untyped.Arith
   ) where
 
 import Control.Monad.Catch
-import Data.Functor.Foldable
+import qualified Data.Tree as T
 import Preliminaries
 
-pattern Ttrue = Node "true" []
-pattern Tfalse = Node "false" []
-pattern Tif b t1 t2 = Node "if_then_else" [b, t1, t2]
-pattern Tzero = Node "0" []
-pattern Tsucc n = Node "succ" [n]
-pattern Tpred n = Node "pred" [n]
-pattern Tiszero n = Node "iszero" [n]
+pattern Ttrue = T.Node "true" []
+pattern Tfalse = T.Node "false" []
+pattern Tif b t1 t2 = T.Node "if_then_else" [b, t1, t2]
+pattern Tzero = T.Node "0" []
+pattern Tsucc n = T.Node "succ" [n]
+pattern Tpred n = T.Node "pred" [n]
+pattern Tiszero n = T.Node "iszero" [n]
 
 isNat :: StrTree -> Bool
 isNat Tzero = True
@@ -30,7 +30,7 @@ isNat _ = False
 instance Calculus "untyped.arith" StrTree StrTree () where
   newtype Term "untyped.arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
   
-  isValueR rec' (ArithTerm t) = go t where
+  isValue (ArithTerm t) = go t where
     go :: StrTree -> Bool
     go Ttrue = True
     go Tfalse = True
@@ -38,26 +38,24 @@ instance Calculus "untyped.arith" StrTree StrTree () where
       | isNat t = True
       | otherwise = False
 
-  evalR _ rec' () (ArithTerm t) = fmap ArithTerm $ go t where
-    rec = fmap (\(ArithTerm t) -> t) . rec' () . ArithTerm
-
+  eval1 () (ArithTerm t) = fmap ArithTerm $ go t where
     go (Tif Ttrue t1 t2) = return t1
     go (Tif Tfalse t1 t2) = return t2
     go (Tif t1 t2 t3) = do
-      t1' <- rec t1
+      t1' <- go t1
       return $ Tif t1' t2 t3
     go (Tsucc t) = do
-      t' <- rec t
+      t' <- go t
       return $ Tsucc t'
     go (Tpred Tzero) = return Tzero
     go (Tpred (Tsucc n)) | isNat n = return n
     go (Tpred t) = do
-      t' <- rec t
+      t' <- go t
       return $ Tpred t'
     go (Tiszero Tzero) = return Ttrue
     go (Tiszero (Tsucc n)) | isNat n = return Tfalse
     go (Tiszero t) = do
-      t' <- rec t
+      t' <- go t
       return $ Tiszero t'
     go _ = throwM NoRuleApplies
 

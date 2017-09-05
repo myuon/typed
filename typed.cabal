@@ -33,7 +33,6 @@ library
     , exceptions
     , tasty-hunit
     , base >=4.7 && <5
-    , recursion-schemes
   exposed-modules:
       Preliminaries
       Typed.Arith
