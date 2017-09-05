@@ -7,8 +7,8 @@ import Preliminaries
 import Typed.Arith
 
 test_typeof =
-  [ testCase "|- true : Bool" $ rights [typeof () (ArithTerm $ Ttrue)] @?= [Tbool]
-  , testCase "|- if false then (pred 0) else (succ 0) : Nat" $ rights [typeof () (ArithTerm $ Tif Tfalse Tzero (Tsucc Tzero))] @?= [Tnat]
+  [ testCase "|- true : Bool" $ rights [typeof () (ArithTerm $ Ttrue)] @?= [Kbool]
+  , testCase "|- if false then (pred 0) else (succ 0) : Nat" $ rights [typeof () (ArithTerm $ Tif Tfalse Tzero (Tsucc Tzero))] @?= [Knat]
   ]
 
 test_eval =

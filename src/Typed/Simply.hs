@@ -1,6 +1,6 @@
 module Typed.Simply
   ( module M
-  , pattern Tarr
+  , pattern Karr
   , pattern Tval
   , pattern Tvar
   , pattern Tabs
@@ -17,7 +17,7 @@ import Typed.Arith as M
 
 data Binding = NameBind | VarBind StrTree
 
-pattern Tarr a b = T.Node "->" [a,b]
+pattern Karr a b = T.Node "->" [a,b]
 
 pattern Tval x = T.Node x []
 pattern Tvar x = T.Node "var" [Tval x]
@@ -43,31 +43,31 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
     go t = isValue (ArithTerm t)
 
   typeof ctx (SimplyTerm t) = go ctx t where
-    go ctx Ttrue = return Tbool
-    go ctx Tfalse = return Tbool
+    go ctx Ttrue = return Kbool
+    go ctx Tfalse = return Kbool
     go ctx (Tif t a b) = do
       tt <- go ctx t
       case tt of
-        Tbool -> do
+        Kbool -> do
           ta <- go ctx a
           tb <- go ctx b
           if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
         _ -> throwM GuardOfConditionalNotABoolean
-    go ctx Tzero = return Tnat
+    go ctx Tzero = return Knat
     go ctx (Tsucc t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tpred t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tiszero t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tvar x) = case ctx M.! x of
       NameBind -> throwM WrongKindOfBindingForVariable
@@ -75,12 +75,12 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tabs x xt t) = do
       let ctx' = M.insert x (VarBind xt) ctx
       tt <- go ctx' t
-      return $ Tarr xt tt
+      return $ Karr xt tt
     go ctx (Tapp tx ty) = do
       txTyp <- go ctx tx
       tyTyp <- go ctx ty
       case txTyp of
-        Tarr txTyp1 txTyp2 ->
+        Karr txTyp1 txTyp2 ->
           if tyTyp == txTyp1 then return txTyp2
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected

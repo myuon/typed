@@ -1,8 +1,8 @@
 module Typed.Arith
   ( module M
   , Term(ArithTerm)
-  , pattern Tbool
-  , pattern Tnat
+  , pattern Kbool
+  , pattern Knat
   ) where
 
 import Control.Monad.Catch
@@ -10,8 +10,8 @@ import qualified Data.Tree as T
 import Untyped.Arith as M hiding (ArithTerm)
 import Preliminaries
 
-pattern Tbool = T.Node "bool" []
-pattern Tnat = T.Node "nat" []
+pattern Kbool = T.Node "bool" []
+pattern Knat = T.Node "nat" []
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
@@ -29,31 +29,31 @@ instance Calculus "typed.arith" StrTree StrTree () where
     go t = isNat t
 
   typeof ctx (ArithTerm t) = go ctx t where
-    go ctx Ttrue = return Tbool
-    go ctx Tfalse = return Tbool
+    go ctx Ttrue = return Kbool
+    go ctx Tfalse = return Kbool
     go ctx (Tif t a b) = do
       tt <- go ctx t
       case tt of
-        Tbool -> do
+        Kbool -> do
           ta <- go ctx a
           tb <- go ctx b
           if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
         _ -> throwM GuardOfConditionalNotABoolean
-    go ctx Tzero = return Tnat
+    go ctx Tzero = return Knat
     go ctx (Tsucc t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tpred t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tiszero t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
 
   eval1 ctx (ArithTerm t) = fmap ArithTerm $ go t where

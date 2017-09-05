@@ -1,15 +1,15 @@
 module Typed.SimplyExt
   ( module Typed.Simply
-  , pattern Tbase
+  , pattern Kbase
   , pattern Tunit
-  , pattern Tstar
+  , pattern Kunit
   , pattern (:.)
   , pattern Tas
   , pattern Tlet
   , pattern Tpair
   , pattern Tpr1
   , pattern Tpr2
-  , pattern Tprod
+  , pattern Kpair
   , Term(SimplyExtTerm)
   ) where
 
@@ -19,11 +19,11 @@ import qualified Data.Tree as T
 import Preliminaries
 import Typed.Simply
 
-pattern Tbase = T.Node "A" []
+pattern Kbase = T.Node "A" []
 
+pattern Kunit = T.Node "Unit" []
 pattern Tunit = T.Node "unit" []
-pattern Tstar = T.Node "*" []
-pattern (:.) tx ty = (Tabs "*" Tunit ty) `Tapp` tx
+pattern (:.) tx ty = (Tabs "*" Kunit ty) `Tapp` tx
 
 pattern Tas t typ = T.Node "as" [t,typ]
 
@@ -32,7 +32,11 @@ pattern Tlet x t1 t2 = T.Node "let _ = _ in _" [Tval x,t1,t2]
 pattern Tpair x y = T.Node "{_,_}" [x,y]
 pattern Tpr1 x = T.Node "_.1" [x]
 pattern Tpr2 x = T.Node "_.2" [x]
-pattern Tprod x y = T.Node "(_,_)" [x,y]
+pattern Kpair x y = T.Node "(_,_)" [x,y]
+
+pattern Ttuple xs = T.Node "{_}" xs
+pattern Tproj i = T.Node "_.i" [i]
+pattern Ktuple xs = T.Node "(_)" xs
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
@@ -50,36 +54,36 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
   newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq, Show)
 
   isValue (SimplyExtTerm t) = go t where
-    go Tstar = True
+    go Tunit = True
     go (Tpair t1 t2) = go t1 && go t2
     go t = isValue (SimplyTerm t)
 
   typeof ctx (SimplyExtTerm t) = go ctx t where
-    go ctx Ttrue = return Tbool
-    go ctx Tfalse = return Tbool
+    go ctx Ttrue = return Kbool
+    go ctx Tfalse = return Kbool
     go ctx (Tif t a b) = do
       tt <- go ctx t
       case tt of
-        Tbool -> do
+        Kbool -> do
           ta <- go ctx a
           tb <- go ctx b
           if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
         _ -> throwM GuardOfConditionalNotABoolean
-    go ctx Tzero = return Tnat
+    go ctx Tzero = return Knat
     go ctx (Tsucc t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tpred t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tiszero t) = do
       tt <- go ctx t
       case tt of
-        Tnat -> return Tnat
+        Knat -> return Knat
         _ -> throwM ExpectedANat
     go ctx (Tvar x) = case ctx M.! x of
       NameBind -> throwM WrongKindOfBindingForVariable
@@ -87,16 +91,16 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tabs x xt t) = do
       let ctx' = M.insert x (VarBind xt) ctx
       tt <- go ctx' t
-      return $ Tarr xt tt
+      return $ Karr xt tt
     go ctx (Tapp tx ty) = do
       txTyp <- go ctx tx
       tyTyp <- go ctx ty
       case txTyp of
-        Tarr txTyp1 txTyp2 ->
+        Karr txTyp1 txTyp2 ->
           if tyTyp == txTyp1 then return txTyp2
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
-    go ctx Tstar = return Tunit
+    go ctx Tunit = return Kunit
     go ctx (Tas t typ) = do
       tt <- go ctx t
       if tt == typ
@@ -106,17 +110,17 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       t1T <- go ctx t1
       t2T <- go (M.insert x (VarBind t1T) ctx) t2
       return t2T
-    go ctx (Tpair t1 t2) = Tprod <$> go ctx t1 <*> go ctx t2
+    go ctx (Tpair t1 t2) = Kpair <$> go ctx t1 <*> go ctx t2
     go ctx (Tpr1 t) = do
       tT <- go ctx t
       case tT of
-        Tprod tT1 tT2 -> return tT1
-        z -> throwM $ ExpectedType (Tprod (T.Node "_" []) (T.Node "_" [])) z
+        Kpair tT1 tT2 -> return tT1
+        z -> throwM $ ExpectedType (Kpair (T.Node "_" []) (T.Node "_" [])) z
     go ctx (Tpr2 t) = do
       tT <- go ctx t
       case tT of
-        Tprod tT1 tT2 -> return tT2
-        z -> throwM $ ExpectedType (Tprod (T.Node "_" []) (T.Node "_" [])) z
+        Kpair tT1 tT2 -> return tT2
+        z -> throwM $ ExpectedType (Kpair (T.Node "_" []) (T.Node "_" [])) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -178,7 +182,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         | v == y = Tabs y yt t
         | otherwise = Tabs y yt (go t)
       go (Tapp t1 t2) = Tapp (go t1) (go t2)
-      go Tstar = Tstar
+      go Tunit = Tunit
       go (Tas t typ) = Tas (go t) typ
       go (Tlet x t1 t2)
         | x == v = Tlet x t1 t2

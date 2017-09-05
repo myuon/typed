@@ -5,8 +5,8 @@ import qualified Data.Tree as T
 import qualified Data.Map as M
 import Preliminaries
 
-pattern Tnat x = T.Node x []
-pattern Tvar x = T.Node "var" [Tnat x]
+pattern Knat x = T.Node x []
+pattern Tvar x = T.Node "var" [Knat x]
 pattern Tabs t = T.Node "lambda" [t]
 pattern Tapp tx ty = T.Node "app" [tx,ty]
 
