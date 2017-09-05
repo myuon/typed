@@ -1,23 +1,13 @@
 module Typed.SimplyExt
   ( module Typed.Simply
   , pattern Kbase
-  , pattern Tunit
-  , pattern Kunit
-  , pattern (:.)
+  , pattern Tunit, pattern Kunit, pattern (:.)
   , pattern Tas
   , pattern Tlet
-  , pattern Tpair
-  , pattern Tpr1
-  , pattern Tpr2
-  , pattern Kpair
-  , pattern Ttuple
-  , pattern Tproj
-  , pattern Ktuple
-  , pattern Tfield
-  , pattern Trecord
-  , pattern Kfield
-  , pattern Krecord
-  , pattern Tprojf
+  , pattern Tpair, pattern Tpr1, pattern Tpr2, pattern Kpair
+  , pattern Ttuple, pattern Tproj, pattern Ktuple
+  , pattern Tfield, pattern Trecord, pattern Kfield, pattern Krecord, pattern Tprojf
+  , pattern Tinlas, pattern Tinras, pattern Tcase, pattern Ksum
   , Term(SimplyExtTerm)
   ) where
 
@@ -56,6 +46,11 @@ pattern Kfield l t = T.Node "{} : {}" [Tval l,t]
 pattern Krecord lts = T.Node "record type" lts
 pattern Tprojf l t = T.Node "{}.label({})" [t,Tval l]
 
+pattern Tinlas t typ = T.Node "inl {} as {}" [t,typ]
+pattern Tinras t typ = T.Node "inr {} as {}" [t,typ]
+pattern Tcase t t1 t2 = T.Node "case {} of inl => {} | inr => {}" [t,t1,t2]
+pattern Ksum x y = T.Node "{} + {}" [x,y]
+
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | GuardOfConditionalNotABoolean
@@ -81,6 +76,8 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go Tunit = True
     go (Tpair t1 t2) = go t1 && go t2
     go (Ttuple ts) = all (isValue . SimplyExtTerm) ts
+    go (Tinlas v _) = go v
+    go (Tinras v _) = go v
     go t = isValue (SimplyTerm t)
 
   typeof ctx (SimplyExtTerm t) = go ctx t where
@@ -162,6 +159,18 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tT of
         Krecord tTs -> return $ (\(Kfield u t) -> t) $ head $ filter (\(Kfield u t) -> l == u) tTs
         z -> throwM $ ExpectedType (Krecord [Kfield l (Tval "_")]) z
+    go ctx (Tinlas t typ) = do
+      case typ of
+        Ksum typT1 typT2 -> do
+          tT <- go ctx t
+          if tT == typT1 then return typ else throwM $ ExpectedType typT1 tT
+        _ -> throwM $ ExpectedType (Ksum (Tval "_") (Tval "_")) typ
+    go ctx (Tinras t typ) = do
+      case typ of
+        Ksum typT1 typT2 -> do
+          tT <- go ctx t
+          if tT == typT2 then return typ else throwM $ ExpectedType typT2 tT
+        _ -> throwM $ ExpectedType (Ksum (Tval "_") (Tval "_")) typ
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -220,6 +229,12 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       let (a,Tfield lb b:bs) = span (\(Tfield l v) -> isValue (SimplyExtTerm v)) vs
       b' <- go ctx b
       return $ Trecord $ a ++ [Tfield lb b'] ++ bs
+    go ctx (Tcase (Tinlas v vT) t1 t2) | isValue (SimplyExtTerm v) = go ctx $ t1 `Tapp` v
+    go ctx (Tcase (Tinras v vT) t1 t2) | isValue (SimplyExtTerm v) = go ctx $ t2 `Tapp` v
+    go ctx (Tcase t t1 t2) = Tcase <$> go ctx t <*> return t1 <*> return t2
+    go ctx (Tinlas v vT) = Tinlas <$> go ctx v <*> return vT
+    go ctx (Tinras v vT) = Tinras <$> go ctx v <*> return vT
+      
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
@@ -249,4 +264,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       go (Ttuple vs) = Ttuple (fmap go vs)
       go (Trecord rs) = Trecord (fmap go rs)
       go (Tprojf l t) = Tprojf l (go t)
+      go (Tcase t t1 t2) = Tcase (go t) (go t1) (go t2)
+      go (Tinlas t tT) = Tinlas (go t) tT
+      go (Tinras t tT) = Tinras (go t) tT
 

@@ -3,6 +3,7 @@ module Typed.SimplyExtTest where
 import Data.Either
 import qualified Data.Map as M
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 import Preliminaries
 import Typed.SimplyExt
 
@@ -23,7 +24,8 @@ test_eval =
   , testCase "{pred 1, if true then false else false}.1 -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tpr1 (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tzero] 
   , testCase "(λx:(nat,bool). x.2) {pred 1, if true then false else false} -> false" $ rights [eval M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tfalse]
   , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
- ]
+  , testCase "case (inr true as nat+bool) of { inl => true; inr => false } -> false" $ rights [eval M.empty (SimplyExtTerm $ Tcase (Tinras Ttrue (Knat `Ksum` Kbool)) (Tabs "x" Knat Ttrue) (Tabs "x" Kbool Tfalse))] @?= [SimplyExtTerm Tfalse]
+  ]
 
 test_show =
   [ testCase "{x := 0}" $ show (SimplyExtTerm $ Trecord [Tfield "x" Tzero]) @?= "{x := 0}"
