@@ -20,9 +20,9 @@ data Binding = NameBind | VarBind StrTree
 pattern Karr a b = T.Node "->" [a,b]
 
 pattern Tval x = T.Node x []
-pattern Tvar x = T.Node "var" [Tval x]
-pattern Tabs x xt t = T.Node "lambda" [Tval x,xt,t]
-pattern Tapp tx ty = T.Node "app" [tx,ty]
+pattern Tvar x = T.Node "var {}" [Tval x]
+pattern Tabs x xt t = T.Node "λ{}:{}. {}" [Tval x,xt,t]
+pattern Tapp tx ty = T.Node "({} {})" [tx,ty]
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes

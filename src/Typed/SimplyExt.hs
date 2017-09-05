@@ -24,6 +24,10 @@ module Typed.SimplyExt
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
+import qualified Data.Text.Lazy as Text
+import Data.Text.Format
+import Data.String (fromString)
+import Data.List
 import Preliminaries
 import Typed.Simply
 
@@ -35,22 +39,22 @@ pattern (:.) tx ty = (Tabs "*" Kunit ty) `Tapp` tx
 
 pattern Tas t typ = T.Node "as" [t,typ]
 
-pattern Tlet x t1 t2 = T.Node "let _ = _ in _" [Tval x,t1,t2]
+pattern Tlet x t1 t2 = T.Node "let {} = {} in {}" [Tval x,t1,t2]
 
-pattern Tpair x y = T.Node "{_,_}" [x,y]
-pattern Tpr1 x = T.Node "_.1" [x]
-pattern Tpr2 x = T.Node "_.2" [x]
-pattern Kpair x y = T.Node "(_,_)" [x,y]
+pattern Tpair x y = T.Node "{{},{}}" [x,y]
+pattern Tpr1 x = T.Node "{}.1" [x]
+pattern Tpr2 x = T.Node "{}.2" [x]
+pattern Kpair x y = T.Node "({},{})" [x,y]
 
-pattern Ttuple xs = T.Node "{_}" xs
-pattern Tproj i t = T.Node "_.i" [Tval i,t]
-pattern Ktuple xs = T.Node "(_)" xs
+pattern Ttuple xs = T.Node "{{}}" xs
+pattern Tproj i t = T.Node "{}.at({})" [t,Tval i]
+pattern Ktuple xs = T.Node "({})" xs
 
-pattern Tfield l t = T.Node "field: _ = _" [Tval l,t]
+pattern Tfield l t = T.Node "{} := {}" [Tval l,t]
 pattern Trecord lts = T.Node "record" lts
-pattern Kfield l t = T.Node "field: _ : _" [Tval l,t]
+pattern Kfield l t = T.Node "{} : {}" [Tval l,t]
 pattern Krecord lts = T.Node "record type" lts
-pattern Tprojf l t = T.Node "_.label" [Tval l,t]
+pattern Tprojf l t = T.Node "{}.label({})" [t,Tval l]
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
@@ -64,8 +68,14 @@ data TypeOfError
 
 instance Exception TypeOfError
 
+instance Show (Term "simply-ext" StrTree) where
+  show (SimplyExtTerm t) = go t where
+    go (Krecord lts) = Text.unpack $ format (fromString $ (\y -> "{" ++ y ++ "}") $ intercalate "," $ replicate (length lts) "{}") (fmap go lts)
+    go (Trecord lts) = Text.unpack $ format (fromString $ (\y -> "{" ++ y ++ "}") $ intercalate ", " $ replicate (length lts) "{}") (fmap go lts)
+    go (T.Node l xs) = Text.unpack $ format (fromString l) (fmap go xs)
+
 instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
-  newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq, Show)
+  newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq)
 
   isValue (SimplyExtTerm t) = go t where
     go Tunit = True

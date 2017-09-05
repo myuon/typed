@@ -16,11 +16,11 @@ import Preliminaries
 
 pattern Ttrue = T.Node "true" []
 pattern Tfalse = T.Node "false" []
-pattern Tif b t1 t2 = T.Node "if_then_else" [b, t1, t2]
+pattern Tif b t1 t2 = T.Node "if {} then {} else {}" [b, t1, t2]
 pattern Tzero = T.Node "0" []
-pattern Tsucc n = T.Node "succ" [n]
-pattern Tpred n = T.Node "pred" [n]
-pattern Tiszero n = T.Node "iszero" [n]
+pattern Tsucc n = T.Node "succ {}" [n]
+pattern Tpred n = T.Node "pred {}" [n]
+pattern Tiszero n = T.Node "iszero {}" [n]
 
 isNat :: StrTree -> Bool
 isNat Tzero = True

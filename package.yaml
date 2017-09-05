@@ -32,6 +32,8 @@ library:
   source-dirs: src
   dependencies:
   - base >=4.7 && <5
+  - text
+  - text-format
 
 tests:
   typed:

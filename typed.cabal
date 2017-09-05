@@ -33,6 +33,8 @@ library
     , exceptions
     , tasty-hunit
     , base >=4.7 && <5
+    , text
+    , text-format
   exposed-modules:
       Preliminaries
       Typed.Arith

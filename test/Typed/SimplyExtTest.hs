@@ -25,4 +25,9 @@ test_eval =
   , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
  ]
 
+test_show =
+  [ testCase "{x := 0}" $ show (SimplyExtTerm $ Trecord [Tfield "x" Tzero]) @?= "{x := 0}"
+  , testCase "{x := 0, y := true}.label(x)" $ show (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" Tzero, Tfield "y" Ttrue])) @?= "{x := 0, y := true}.label(x)"
+  , testCase "let x = if true then 0 else succ 0 in var y" $ show (SimplyExtTerm $ Tlet "x" (Tif Ttrue Tzero (Tsucc Tzero)) (Tvar "y")) @?= "let x = if true then 0 else succ 0 in var y"
+  ]
 
