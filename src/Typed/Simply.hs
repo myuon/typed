@@ -104,8 +104,6 @@ instance Calculus "simply" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tiszero t) = do
       t' <- go ctx t
       return $ Tiszero t'
-    go ctx (Tvar x) = return $ Tvar x
-    go ctx (Tabs x xt t) = return $ Tabs x xt t
     go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
     go ctx (Tapp tx ty)
       | isValue (SimplyTerm tx) = do

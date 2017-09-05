@@ -13,5 +13,6 @@ test_typeof =
 
 test_eval =
   [ testCase "(λx:bool. x) true" $ rights [eval M.empty (SimplyTerm $ Tabs "x" Tbool (Tvar "x") `Tapp` Ttrue)] @?= [SimplyTerm Ttrue]
+  , testCase "λx:bool. true" $ rights [eval M.empty (SimplyTerm $ Tabs "x" Tbool Ttrue)] @?= [SimplyTerm $ Tabs "x" Tbool Ttrue]
   ]
 

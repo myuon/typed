@@ -6,6 +6,10 @@ module Typed.SimplyExt
   , pattern (:.)
   , pattern Tas
   , pattern Tlet
+  , pattern Tpair
+  , pattern Tpr1
+  , pattern Tpr2
+  , pattern Tprod
   , Term(SimplyExtTerm)
   ) where
 
@@ -25,6 +29,11 @@ pattern Tas t typ = T.Node "as" [t,typ]
 
 pattern Tlet x t1 t2 = T.Node "let _ = _ in _" [Tval x,t1,t2]
 
+pattern Tpair x y = T.Node "{_,_}" [x,y]
+pattern Tpr1 x = T.Node "_.1" [x]
+pattern Tpr2 x = T.Node "_.2" [x]
+pattern Tprod x y = T.Node "(_,_)" [x,y]
+
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | GuardOfConditionalNotABoolean
@@ -32,7 +41,7 @@ data TypeOfError
   | WrongKindOfBindingForVariable
   | ParameterTypeMismatch
   | ArrowTypeExpected
-  | ExpectedType StrTree
+  | ExpectedType StrTree StrTree
   deriving Show
 
 instance Exception TypeOfError
@@ -42,6 +51,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
 
   isValue (SimplyExtTerm t) = go t where
     go Tstar = True
+    go (Tpair t1 t2) = go t1 && go t2
     go t = isValue (SimplyTerm t)
 
   typeof ctx (SimplyExtTerm t) = go ctx t where
@@ -91,11 +101,22 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       tt <- go ctx t
       if tt == typ
         then return typ
-        else throwM $ ExpectedType typ
+        else throwM $ ExpectedType typ tt
     go ctx (Tlet x t1 t2) = do
       t1T <- go ctx t1
       t2T <- go (M.insert x (VarBind t1T) ctx) t2
       return t2T
+    go ctx (Tpair t1 t2) = Tprod <$> go ctx t1 <*> go ctx t2
+    go ctx (Tpr1 t) = do
+      tT <- go ctx t
+      case tT of
+        Tprod tT1 tT2 -> return tT1
+        z -> throwM $ ExpectedType (Tprod (T.Node "_" []) (T.Node "_" [])) z
+    go ctx (Tpr2 t) = do
+      tT <- go ctx t
+      case tT of
+        Tprod tT1 tT2 -> return tT2
+        z -> throwM $ ExpectedType (Tprod (T.Node "_" []) (T.Node "_" [])) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -118,7 +139,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       return $ Tiszero t'
     go ctx (Tvar x) = return $ Tvar x
     go ctx (Tabs x xt t) = return $ Tabs x xt t
-    go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
+    go ctx (Tapp (Tabs x typ11 t12) v) | isValue (SimplyExtTerm v) = return $ subst x v t12
     go ctx (Tapp tx ty)
       | isValue (SimplyTerm tx) = do
         ty' <- go ctx ty
@@ -134,6 +155,13 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       | otherwise = do
         v' <- go ctx v
         return $ Tlet x v t
+    go ctx (Tpr1 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
+    go ctx (Tpr2 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
+    go ctx (Tpr1 t) = Tpr1 <$> (go ctx t)
+    go ctx (Tpr2 t) = Tpr2 <$> (go ctx t)
+    go ctx (Tpair t1 t2)
+      | isValue (SimplyExtTerm t1) = Tpair t1 <$> go ctx t2
+      | otherwise = Tpair <$> (go ctx t1) <*> return t2
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
@@ -155,5 +183,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       go (Tlet x t1 t2)
         | x == v = Tlet x t1 t2
         | otherwise = Tlet x (go t1) (go t2)
-
+      go (Tpair t1 t2) = Tpair (go t1) (go t2)
+      go (Tpr1 t) = Tpr1 (go t)
+      go (Tpr2 t) = Tpr2 (go t)
 

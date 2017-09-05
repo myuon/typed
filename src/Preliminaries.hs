@@ -5,6 +5,7 @@ import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
 import GHC.TypeLits
+import Language.Haskell.TH
 
 type Var = String
 
