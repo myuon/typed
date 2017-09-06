@@ -10,6 +10,7 @@ module Typed.SimplyExt
   , pattern Tinlas, pattern Tinras, pattern Tcase, pattern Ksum
   , pattern Ttagged, pattern Tmatch, pattern Tcasev, pattern Ktagged, pattern Kvariant
   , pattern Tfix, pattern Tletrec
+  , pattern Tnil, pattern Tcons, pattern Tisnil, pattern Thead, pattern Ttail, pattern Klist
   , Term(SimplyExtTerm)
   ) where
 
@@ -64,6 +65,13 @@ pattern Kvariant xs = T.Node "variant" xs
 pattern Tfix t = T.Node "fix {}" [t]
 pattern Tletrec x typ t1 t2 <- Tlet x (Tfix (Tabs x typ t1)) t2
 
+pattern Tnil typ = T.Node "nil[{}]" [typ]
+pattern Tcons typ t1 t2 = T.Node "cons[{}] {} {}" [typ,t1,t2]
+pattern Tisnil typ t = T.Node "isnil[{}] {}" [typ,t]
+pattern Thead typ t = T.Node "head[{}] {}" [typ,t]
+pattern Ttail typ t = T.Node "tail[{}] {}" [typ,t]
+pattern Klist typ = T.Node "List {}" [typ]
+
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | ExpectedANat
@@ -92,6 +100,8 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go (Ttuple ts) = all (isValue . SimplyExtTerm) ts
     go (Tinlas v _) = go v
     go (Tinras v _) = go v
+    go (Tnil _) = True
+    go (Tcons _ v1 v2) = go v1 && go v2
     go t = isValue (SimplyTerm t)
 
   typeof ctx (SimplyExtTerm t) = go ctx t where
@@ -213,6 +223,28 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tT of
         Karr tT1 tT2 | tT1 == tT2 -> return tT1
         z -> throwM $ ExpectedType (Karr (Tval "?a") (Tval "?a")) z
+    go ctx (Tnil typ) = return $ Klist typ
+    go ctx (Tcons typ t1 t2) = do
+      t1T <- go ctx t1
+      t2T <- go ctx t2
+      if t1T == typ && t2T == Klist typ
+        then return $ Klist typ
+        else throwM $ ExpectedType (Klist typ) (T.Node "{} or {}" [t1T,t2T])
+    go ctx (Tisnil typ t) = do
+      tT <- go ctx t
+      case tT of
+        Klist tT' | tT' == typ -> return Kbool
+        z -> throwM $ ExpectedType (Klist typ) z
+    go ctx (Thead typ t) = do
+      tT <- go ctx t
+      case tT of
+        Klist tT' | tT' == typ -> return $ typ
+        z -> throwM $ ExpectedType (Klist typ) z
+    go ctx (Ttail typ t) = do
+      tT <- go ctx t
+      case tT of
+        Klist tT' | tT' == typ -> return $ Klist typ
+        z -> throwM $ ExpectedType (Klist typ) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -289,6 +321,16 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Ttagged l t typ) = Ttagged l <$> go ctx t <*> return typ
     go ctx (Tfix (Tabs x typ t)) = return $ subst x (Tfix (Tabs x typ t)) t
     go ctx (Tfix t) = Tfix <$> go ctx t
+    go ctx (Tcons typ t1 t2)
+      | isValue (SimplyExtTerm t1) = Tcons typ t1 <$> go ctx t2
+      | otherwise = Tcons typ <$> go ctx t1 <*> return t2
+    go ctx (Tisnil typ (Tnil _)) = return Ttrue
+    go ctx (Tisnil typ (Tcons _ _ _)) = return Tfalse
+    go ctx (Tisnil typ t) = Tisnil typ <$> go ctx t
+    go ctx (Thead typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
+    go ctx (Thead typ t) = Thead typ <$> go ctx t
+    go ctx (Ttail typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
+    go ctx (Ttail typ t) = Ttail typ <$> go ctx t
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
