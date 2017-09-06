@@ -11,6 +11,7 @@ module Typed.SimplyExt
   , Term(SimplyExtTerm)
   ) where
 
+import Control.Monad
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
@@ -51,6 +52,13 @@ pattern Tinras t typ = T.Node "inr {} as {}" [t,typ]
 pattern Tcase t t1 t2 = T.Node "case {} of inl => {} | inr => {}" [t,t1,t2]
 pattern Ksum x y = T.Node "{} + {}" [x,y]
 
+pattern Ttagged l t typ = T.Node "<{} := {}> as {}" [Tval l,t,typ]
+pattern Tmatch l x t = T.Node "<{} = {}> -> {}" [Tval l,Tval x,t]
+pattern Pcase xs = T.Node "case" xs
+pattern Tcasev t hs = T.Node "case {} of {}" [t, Pcase hs]
+pattern Ktagged l typ = T.Node "{} : {}" [Tval l,typ]
+pattern Kvariant xs = T.Node "variant" xs
+
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | GuardOfConditionalNotABoolean
@@ -59,6 +67,8 @@ data TypeOfError
   | ParameterTypeMismatch
   | ArrowTypeExpected
   | ExpectedType StrTree StrTree
+  | NotFound String
+  | CaseMatchNotHaveSameType [StrTree]
   deriving Show
 
 instance Exception TypeOfError
@@ -171,6 +181,29 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
           tT <- go ctx t
           if tT == typT2 then return typ else throwM $ ExpectedType typT2 tT
         _ -> throwM $ ExpectedType (Ksum (Tval "_") (Tval "_")) typ
+    go ctx (Ttagged l t typ) = do
+      tT <- go ctx t
+      case typ of
+        Kvariant xs | (l,tT) `elem` fmap (\(Ktagged l t) -> (l,t)) xs -> return $ typ
+        z -> throwM $ ExpectedType typ (Kvariant [Ktagged l tT])
+    go ctx (Tcasev t lxt) = do
+      tT <- go ctx t
+      case tT of
+        Kvariant lts | sort (fmap (\(Tmatch l _ _) -> l) lxt) == sort (fmap (\(Ktagged l _) -> l) lts) -> do
+          ts <- forM lxt $ \(Tmatch li xi ti) -> do
+            tTi <- lookup' li lts
+            go (M.insert xi (VarBind tTi) ctx) ti
+          if length (nub ts) <= 1
+            then return $ head ts
+            else throwM $ CaseMatchNotHaveSameType ts
+        z -> throwM $ ExpectedType (Kvariant [Tval "_"]) z
+
+      where
+        lookup' :: MonadThrow m => String -> [StrTree] -> m StrTree
+        lookup' l [] = throwM $ NotFound l
+        lookup' l (Ktagged l' typ : ks)
+          | l == l' = return typ
+          | otherwise = lookup' l ks
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -234,7 +267,17 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tcase t t1 t2) = Tcase <$> go ctx t <*> return t1 <*> return t2
     go ctx (Tinlas v vT) = Tinlas <$> go ctx v <*> return vT
     go ctx (Tinras v vT) = Tinras <$> go ctx v <*> return vT
-      
+    go ctx (Tcasev (Ttagged l v typ) lxt) | isValue (SimplyExtTerm v) = do
+      Tmatch l x t <- lookup' l lxt
+      return $ subst x v t
+      where
+        lookup' :: MonadThrow m => String -> [StrTree] -> m StrTree
+        lookup' l [] = throwM $ NotFound l
+        lookup' l (Tmatch l' x t : ks)
+          | l == l' = return $ Tmatch l' x t
+          | otherwise = lookup' l ks
+    go ctx (Tcasev t lxt) = Tcasev <$> go ctx t <*> return lxt
+    go ctx (Ttagged l t typ) = Ttagged l <$> go ctx t <*> return typ
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
@@ -267,4 +310,5 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       go (Tcase t t1 t2) = Tcase (go t) (go t1) (go t2)
       go (Tinlas t tT) = Tinlas (go t) tT
       go (Tinras t tT) = Tinras (go t) tT
+      go (Tcasev t lxt) = Tcasev (go t) (fmap (\(Tmatch l x t) -> Tmatch l x (go t)) lxt)
 
