@@ -7,6 +7,12 @@ import Test.Tasty.QuickCheck
 import Preliminaries
 import Typed.SimplyExt
 
+_Tff = Tabs "ie" (Knat `Karr` Kbool) $ Tabs "x" Knat $
+     Tif (Tiszero (Tvar "x")) Ttrue $
+     Tif (Tiszero (Tpred (Tvar "x"))) Tfalse $
+     (Tvar "ie") `Tapp` Tpred (Tpred (Tvar "x"))
+_Tiseven = Tfix _Tff
+
 test_typeof =
   [ testCase "|- λx:A. x : A -> A" $ rights [typeof M.empty (SimplyExtTerm $ Tabs "x" Kbase (Tvar "x"))] @?= [Karr Kbase Kbase]
   , testCase "|- λf:A -> A. λx:A. f(f(x)) : (A -> A) -> A -> A" $ rights [typeof M.empty (SimplyExtTerm $ Tabs "f" (Kbase `Karr` Kbase) (Tabs "x" Kbase (Tvar "f" `Tapp` (Tvar "f" `Tapp` Tvar "x"))))] @?= [(Kbase `Karr` Kbase) `Karr` (Kbase `Karr` Kbase)]
@@ -16,6 +22,8 @@ test_typeof =
   , testCase "|- (λx:(nat,bool). x.2) {pred 1, if true then false else false} : bool" $ rights [typeof M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [Kbool]
   , testCase "|- {1,2,true} : (nat,nat,bool)" $ rights [typeof M.empty (SimplyExtTerm $ Ttuple [Tsucc Tzero, Tsucc (Tsucc Tzero), Ttrue])] @?= [Ktuple [Knat, Knat, Kbool]]
   , testCase "|- {x=0, isHoge=true} : {x:nat, isHoge:bool}" $ rights [typeof M.empty (SimplyExtTerm $ Trecord [Tfield "x" Tzero, Tfield "isHoge" Ttrue])] @?= [Krecord [Kfield "x" Knat, Kfield "isHoge" Kbool]]
+  , testCase "|- ff : (nat -> bool) -> nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tff)] @?= [(Knat `Karr` Kbool) `Karr` (Knat `Karr` Kbool)]
+  , testCase "|- iseven : nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tiseven)] @?= [Knat `Karr` Kbool]
   ]
 
 test_eval =
@@ -25,6 +33,8 @@ test_eval =
   , testCase "(λx:(nat,bool). x.2) {pred 1, if true then false else false} -> false" $ rights [eval M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tfalse]
   , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
   , testCase "case (inr true as nat+bool) of { inl => true; inr => false } -> false" $ rights [eval M.empty (SimplyExtTerm $ Tcase (Tinras Ttrue (Knat `Ksum` Kbool)) (Tabs "x" Knat Ttrue) (Tabs "x" Kbool Tfalse))] @?= [SimplyExtTerm Tfalse]
+  , testCase "|- iseven 3 -> false" $ rights [eval M.empty (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc (Tsucc Tzero)))))] @?= [SimplyExtTerm Tfalse]
+  , testCase "|- iseven 2 -> true" $ rights [eval M.empty (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc Tzero))))] @?= [SimplyExtTerm Ttrue]
   ]
 
 test_show =

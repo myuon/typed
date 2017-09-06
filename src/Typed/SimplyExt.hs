@@ -8,6 +8,8 @@ module Typed.SimplyExt
   , pattern Ttuple, pattern Tproj, pattern Ktuple
   , pattern Tfield, pattern Trecord, pattern Kfield, pattern Krecord, pattern Tprojf
   , pattern Tinlas, pattern Tinras, pattern Tcase, pattern Ksum
+  , pattern Ttagged, pattern Tmatch, pattern Tcasev, pattern Ktagged, pattern Kvariant
+  , pattern Tfix, pattern Tletrec
   , Term(SimplyExtTerm)
   ) where
 
@@ -26,7 +28,7 @@ pattern Kbase = T.Node "A" []
 
 pattern Kunit = T.Node "Unit" []
 pattern Tunit = T.Node "unit" []
-pattern (:.) tx ty = (Tabs "*" Kunit ty) `Tapp` tx
+pattern (:.) tx ty <- (Tabs "*" Kunit ty) `Tapp` tx
 
 pattern Tas t typ = T.Node "as" [t,typ]
 
@@ -59,9 +61,11 @@ pattern Tcasev t hs = T.Node "case {} of {}" [t, Pcase hs]
 pattern Ktagged l typ = T.Node "{} : {}" [Tval l,typ]
 pattern Kvariant xs = T.Node "variant" xs
 
+pattern Tfix t = T.Node "fix {}" [t]
+pattern Tletrec x typ t1 t2 <- Tlet x (Tfix (Tabs x typ t1)) t2
+
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
-  | GuardOfConditionalNotABoolean
   | ExpectedANat
   | WrongKindOfBindingForVariable
   | ParameterTypeMismatch
@@ -100,7 +104,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
           ta <- go ctx a
           tb <- go ctx b
           if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
-        _ -> throwM GuardOfConditionalNotABoolean
+        z -> throwM $ ExpectedType Kbool z
     go ctx Tzero = return Knat
     go ctx (Tsucc t) = do
       tt <- go ctx t
@@ -115,7 +119,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Tiszero t) = do
       tt <- go ctx t
       case tt of
-        Knat -> return Knat
+        Knat -> return Kbool
         _ -> throwM ExpectedANat
     go ctx (Tvar x) = case ctx M.! x of
       NameBind -> throwM WrongKindOfBindingForVariable
@@ -204,6 +208,11 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         lookup' l (Ktagged l' typ : ks)
           | l == l' = return typ
           | otherwise = lookup' l ks
+    go ctx (Tfix t) = do
+      tT <- go ctx t
+      case tT of
+        Karr tT1 tT2 | tT1 == tT2 -> return tT1
+        z -> throwM $ ExpectedType (Karr (Tval "?a") (Tval "?a")) z
 
   eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
     go ctx (Tif Ttrue t1 t2) = return t1
@@ -278,6 +287,8 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
           | otherwise = lookup' l ks
     go ctx (Tcasev t lxt) = Tcasev <$> go ctx t <*> return lxt
     go ctx (Ttagged l t typ) = Ttagged l <$> go ctx t <*> return typ
+    go ctx (Tfix (Tabs x typ t)) = return $ subst x (Tfix (Tabs x typ t)) t
+    go ctx (Tfix t) = Tfix <$> go ctx t
     go ctx _ = throwM NoRuleApplies
 
     subst v p = go where
@@ -311,4 +322,5 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       go (Tinlas t tT) = Tinlas (go t) tT
       go (Tinras t tT) = Tinras (go t) tT
       go (Tcasev t lxt) = Tcasev (go t) (fmap (\(Tmatch l x t) -> Tmatch l x (go t)) lxt)
+      go (Tfix t) = Tfix (go t)
 
