@@ -1,0 +1,51 @@
+name: typed
+version: '1.0.0.0'
+synopsis: Typed Lambda Calculus
+description: Please see README.md
+category: Other
+author: myuon
+maintainer: ioi.joi.koi.loi@gmail.com
+copyright: 2016 myuon
+license: MIT
+github: myuon/typed
+
+default-extensions:
+- PatternSynonyms
+- LambdaCase
+- DataKinds
+- TypeFamilies
+- TypeApplications
+- MultiParamTypeClasses
+- FlexibleInstances
+- TypeSynonymInstances
+- OverloadedLabels
+
+extra-source-files:
+- README.md
+
+dependencies:
+- containers
+- exceptions
+- tasty-hunit
+- tasty-quickcheck
+
+library:
+  source-dirs: src
+  dependencies:
+  - base >=4.7 && <5
+  - text
+  - text-format
+
+tests:
+  typed:
+    source-dirs: test
+    main: Driver.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - typed
+    - tasty
+
