@@ -32,7 +32,7 @@ data TypeOfError
 
 instance Exception TypeOfError
 
-instance Calculus "simply" StrTree StrTree () (M.Map Var StrTree) where
+instance Calculus "simply" StrTree StrTree (M.Map Var StrTree) where
   data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
   isValue (SimplyTerm t) = go t where
@@ -79,34 +79,34 @@ instance Calculus "simply" StrTree StrTree () (M.Map Var StrTree) where
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
 
-  eval1 ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
-    go ctx (Tif Ttrue t1 t2) = return t1
-    go ctx (Tif Tfalse t1 t2) = return t2
-    go ctx (Tif t1 t2 t3) = do
-      t1' <- go ctx t1
+  eval1 (SimplyTerm t) = fmap SimplyTerm $ go t where
+    go (Tif Ttrue t1 t2) = return t1
+    go (Tif Tfalse t1 t2) = return t2
+    go (Tif t1 t2 t3) = do
+      t1' <- go t1
       return $ Tif t1' t2 t3
-    go ctx (Tsucc t) = do
-      t' <- go ctx t
+    go (Tsucc t) = do
+      t' <- go t
       return $ Tsucc t'
-    go ctx (Tpred Tzero) = return Tzero
-    go ctx (Tpred (Tsucc n)) | isNat n = return n
-    go ctx (Tpred t) = do
-      t' <- go ctx t
+    go (Tpred Tzero) = return Tzero
+    go (Tpred (Tsucc n)) | isNat n = return n
+    go (Tpred t) = do
+      t' <- go t
       return $ Tpred t'
-    go ctx (Tiszero Tzero) = return Ttrue
-    go ctx (Tiszero (Tsucc n)) | isNat n = return Tfalse
-    go ctx (Tiszero t) = do
-      t' <- go ctx t
+    go (Tiszero Tzero) = return Ttrue
+    go (Tiszero (Tsucc n)) | isNat n = return Tfalse
+    go (Tiszero t) = do
+      t' <- go t
       return $ Tiszero t'
-    go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
-    go ctx (Tapp tx ty)
+    go (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
+    go (Tapp tx ty)
       | isValue (SimplyTerm tx) = do
-        ty' <- go ctx ty
+        ty' <- go ty
         return $ Tapp tx ty'
       | otherwise = do
-        tx' <- go ctx tx
+        tx' <- go tx
         return $ Tapp tx' ty
-    go ctx _ = throwM NoRuleApplies
+    go _ = throwM NoRuleApplies
 
     subst v p = go where
       go Ttrue = Ttrue

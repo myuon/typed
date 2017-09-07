@@ -27,7 +27,6 @@ dependencies:
 - containers
 - exceptions
 - tasty-hunit
-- tasty-quickcheck
 
 library:
   source-dirs: src

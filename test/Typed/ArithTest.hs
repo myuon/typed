@@ -12,7 +12,7 @@ test_typeof =
   ]
 
 test_eval =
-  [ testCase "if true then iszero (pred (succ 0)) else false -> true" $ rights [eval () (ArithTerm $ Tif Ttrue (Tiszero (Tpred (Tsucc Tzero))) Tfalse)] @?= [ArithTerm Ttrue]
-  , testCase "iszero (succ (pred 0)) -> false" $ rights [eval () (ArithTerm $ Tiszero (Tsucc (Tpred Tzero)))] @?= [ArithTerm Tfalse]
+  [ testCase "if true then iszero (pred (succ 0)) else false -> true" $ rights [eval (ArithTerm $ Tif Ttrue (Tiszero (Tpred (Tsucc Tzero))) Tfalse)] @?= [ArithTerm Ttrue]
+  , testCase "iszero (succ (pred 0)) -> false" $ rights [eval (ArithTerm $ Tiszero (Tsucc (Tpred Tzero)))] @?= [ArithTerm Tfalse]
   ]
 

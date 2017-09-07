@@ -1,11 +1,22 @@
-module Typed.Reference where
+module Typed.Reference
+  ( module M
+  , pattern Tref
+  , pattern Tderef
+  , pattern Tassign
+  , pattern Tloc
+  , pattern Kref
+  , Term(ReferenceTerm)
+  , EvalTerm(RefEvalTerm)
+  ) where
 
+import Control.Monad
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
+import Data.Unique
 import Preliminaries
-import Typed.Simply
-import Typed.SimplyExt (pattern Tunit, pattern Kunit)
+import Typed.Simply as M (pattern Tval, pattern Tvar, pattern Tabs, pattern Tapp, pattern Karr)
+import Typed.SimplyExt as M (pattern Tunit, pattern Kunit)
 
 pattern Tref t = T.Node "ref {}" [t]
 pattern Tderef t = T.Node "!{}" [t]
@@ -15,95 +26,78 @@ pattern Kref t = T.Node "Ref {}" [t]
 
 type Loc = String
 
-instance Calculus "reference" StrTree StrTree (M.Map Loc StrTree) (M.Map Var StrTree, M.Map Loc StrTree) where
+data TypeOfError
+  = ExpectedType StrTree StrTree
+  deriving Show
+
+instance Exception TypeOfError
+
+instance Calculus "reference" StrTree StrTree (M.Map Var StrTree, M.Map Loc StrTree) where
   data Term "reference" StrTree = ReferenceTerm StrTree deriving (Eq, Show)
-  
-{-
-  data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
-  isValue (SimplyTerm t) = go t where
+  isValue (ReferenceTerm t) = go t where
     go (Tabs _ _ _) = True
-    go t = isValue (ArithTerm t)
+    go Tunit = True
+    go (Tloc _) = True
+    go _ = False
 
-  typeof ctx (SimplyTerm t) = go ctx t where
-    go ctx Ttrue = return Kbool
-    go ctx Tfalse = return Kbool
-    go ctx (Tif t a b) = do
-      tt <- go ctx t
-      case tt of
-        Kbool -> do
-          ta <- go ctx a
-          tb <- go ctx b
-          if ta == tb then return ta else throwM ArmsOfConditionalHasDifferentTypes
-        _ -> throwM GuardOfConditionalNotABoolean
-    go ctx Tzero = return Knat
-    go ctx (Tsucc t) = do
-      tt <- go ctx t
-      case tt of
-        Knat -> return Knat
-        _ -> throwM ExpectedANat
-    go ctx (Tpred t) = do
-      tt <- go ctx t
-      case tt of
-        Knat -> return Knat
-        _ -> throwM ExpectedANat
-    go ctx (Tiszero t) = do
-      tt <- go ctx t
-      case tt of
-        Knat -> return Knat
-        _ -> throwM ExpectedANat
-    go ctx (Tvar x) = case ctx M.! x of
-      NameBind -> throwM WrongKindOfBindingForVariable
-      VarBind typ -> return typ
-    go ctx (Tabs x xt t) = do
-      let ctx' = M.insert x (VarBind xt) ctx
-      tt <- go ctx' t
-      return $ Karr xt tt
-    go ctx (Tapp tx ty) = do
-      txTyp <- go ctx tx
-      tyTyp <- go ctx ty
-      case txTyp of
-        Karr txTyp1 txTyp2 ->
-          if tyTyp == txTyp1 then return txTyp2
-          else throwM ParameterTypeMismatch
-        _ -> throwM ArrowTypeExpected
+  typeof arg (ReferenceTerm t) = go arg t where
+    go (ctx,sto) (Tvar x) = return $ ctx M.! x
+    go (ctx,sto) (Tabs x xt t) = do
+      tT <- go (M.insert x xt ctx,sto) t
+      return $ xt `Karr` tT
+    go (ctx,sto) (Tapp t1 t2) = do
+      go (ctx,sto) t1 >>= \case
+        Karr t1T1 t1T2 -> do
+          _ <- join $ liftM2 (expect ExpectedType) (return t1T1) (go (ctx,sto) t2)
+          return $ t1T2
+        z -> throwM $ ExpectedType (Karr (Tval "_") (Tval "_")) z
+    go (ctx,sto) Tunit = return Kunit
+    go (ctx,sto) (Tloc l) = return $ Kref $ sto M.! l
+    go (ctx,sto) (Tref t) = Kref <$> go (ctx,sto) t
+    go (ctx,sto) (Tderef t) = do
+      go (ctx,sto) t >>= \case
+        Kref tT -> return tT
+        z -> throwM $ ExpectedType (Kref (Tval "_")) z
+    go (ctx,sto) (Tassign t1 t2) = do
+      go (ctx,sto) t1 >>= \case
+        Kref t1T -> do
+          _ <- join $ liftM2 (expect ExpectedType) (return t1T) (go (ctx,sto) t2)
+          return Kunit
+        z -> throwM $ ExpectedType (Kref (Tval "_")) z
 
-  eval1 ctx (SimplyTerm t) = fmap SimplyTerm $ go ctx t where
-    go ctx (Tif Ttrue t1 t2) = return t1
-    go ctx (Tif Tfalse t1 t2) = return t2
-    go ctx (Tif t1 t2 t3) = do
-      t1' <- go ctx t1
-      return $ Tif t1' t2 t3
-    go ctx (Tsucc t) = do
-      t' <- go ctx t
-      return $ Tsucc t'
-    go ctx (Tpred Tzero) = return Tzero
-    go ctx (Tpred (Tsucc n)) | isNat n = return n
-    go ctx (Tpred t) = do
-      t' <- go ctx t
-      return $ Tpred t'
-    go ctx (Tiszero Tzero) = return Ttrue
-    go ctx (Tiszero (Tsucc n)) | isNat n = return Tfalse
-    go ctx (Tiszero t) = do
-      t' <- go ctx t
-      return $ Tiszero t'
-    go ctx (Tapp (Tabs x typ11 t12) v) = return $ subst x v t12
-    go ctx (Tapp tx ty)
-      | isValue (SimplyTerm tx) = do
-        ty' <- go ctx ty
-        return $ Tapp tx ty'
-      | otherwise = do
-        tx' <- go ctx tx
-        return $ Tapp tx' ty
-    go ctx _ = throwM NoRuleApplies
+instance EvCalculus "reference" StrTree StrTree (M.Map Var StrTree, M.Map Loc StrTree) where
+  data EvalTerm "reference" StrTree = RefEvalTerm StrTree (M.Map Loc StrTree) deriving (Eq, Show)
+
+  eval1ext = go where
+    go (RefEvalTerm (Tapp (Tabs x xt t1) t2) mu) | isValue (ReferenceTerm t2) = return $ RefEvalTerm (subst x t2 t1) mu
+    go (RefEvalTerm (Tapp t1 t2) mu) | isValue (ReferenceTerm t1) = do
+      RefEvalTerm t2' mu' <- go (RefEvalTerm t2 mu)
+      return $ RefEvalTerm (Tapp t1 t2') mu'
+    go (RefEvalTerm (Tapp t1 t2) mu) = do
+      RefEvalTerm t1' mu' <- go (RefEvalTerm t1 mu)
+      return $ RefEvalTerm (Tapp t1' t2) mu'
+    go (RefEvalTerm (Tref v) mu) | isValue (ReferenceTerm v) = do
+      let loc =(++ "'") $ last $ M.keys mu
+      return $ RefEvalTerm (Tloc loc) (M.insert loc v mu)
+    go (RefEvalTerm (Tref t) mu) = do
+      RefEvalTerm t' mu' <- go (RefEvalTerm t mu)
+      return $ RefEvalTerm (Tref t') mu
+    go (RefEvalTerm (Tderef (Tloc l)) mu) = return $ RefEvalTerm (mu M.! l) mu
+    go (RefEvalTerm (Tderef t) mu) = do
+      RefEvalTerm t' mu' <- go (RefEvalTerm t mu)
+      return $ RefEvalTerm (Tderef t') mu'
+    go (RefEvalTerm (Tassign (Tloc l) v) mu) | isValue (ReferenceTerm v) =
+      return $ RefEvalTerm Tunit (M.insert l v mu)
+    go (RefEvalTerm (Tassign t1 t2) mu) | isValue (ReferenceTerm t1) = do
+      RefEvalTerm t2' mu' <- go (RefEvalTerm t2 mu)
+      return $ RefEvalTerm (Tassign t1 t2') mu
+    go (RefEvalTerm (Tassign t1 t2) mu) = do
+      RefEvalTerm t1' mu' <- go (RefEvalTerm t1 mu)
+      return $ RefEvalTerm (Tassign t1' t2) mu
+    go _ = throwM NoRuleApplies
 
     subst v p = go where
-      go Ttrue = Ttrue
-      go Tfalse = Tfalse
-      go (Tif b t1 t2) = Tif (go b) (go t1) (go t2)
-      go (Tsucc t) = Tsucc (go t)
-      go (Tpred t) = Tpred (go t)
-      go (Tiszero t) = Tiszero (go t)
       go (Tvar y)
         | v == y = p
         | otherwise = Tvar y
@@ -111,8 +105,8 @@ instance Calculus "reference" StrTree StrTree (M.Map Loc StrTree) (M.Map Var Str
         | v == y = Tabs y yt t
         | otherwise = Tabs y yt (go t)
       go (Tapp t1 t2) = Tapp (go t1) (go t2)
-
-
-
--}
+      go Tunit = Tunit
+      go (Tref t) = Tref (go t)
+      go (Tderef t) = Tderef (go t)
+      go (Tassign t1 t2) = Tassign (go t1) (go t2)
 

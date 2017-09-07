@@ -8,15 +8,28 @@ import GHC.TypeLits
 
 type Var = String
 
-class Calculus (c :: Symbol) trm typ evctx tyctx | c -> trm typ evctx tyctx where
+class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
   data Term c trm
-  isValue :: (Calculus c trm typ evctx tyctx) => Term c trm -> Bool
-  eval1 :: (Calculus c trm typ evctx tyctx, MonadCatch m) => evctx -> Term c trm -> m (Term c trm)
-  typeof :: (Calculus c trm typ evctx tyctx, MonadThrow m) => tyctx -> Term c trm -> m typ
+  isValue :: (Calculus c trm typ ctx) => Term c trm -> Bool
+  eval1 :: (Calculus c trm typ ctx, MonadCatch m) => Term c trm -> m (Term c trm)
+  typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ
 
-eval :: (Calculus c trm typ evctx tyctx, MonadCatch m) => evctx -> Term c trm -> m (Term c trm)
-eval ctx t = catch (eval1 ctx t >>= eval ctx) $ \case
+eval :: (Calculus c trm typ ctx, MonadCatch m) => Term c trm -> m (Term c trm)
+eval t = catch (eval1 t >>= eval) $ \case
   NoRuleApplies -> return t
+
+class Calculus c trm typ ctx => EvCalculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
+  data EvalTerm c trm
+  eval1ext :: (Calculus c trm typ ctx, MonadCatch m) => EvalTerm c trm -> m (EvalTerm c trm)
+
+evalext :: (EvCalculus c trm typ ctx, MonadCatch m) => EvalTerm c trm -> m (EvalTerm c trm)
+evalext t = catch (eval1ext t >>= evalext) $ \case
+  NoRuleApplies -> return t
+
+expect :: (MonadThrow m, Exception e, Eq a) => (a -> a -> e) -> a -> a -> m a
+expect err exp act
+  | exp == act = return exp
+  | otherwise = throwM $ err exp act
 
 type StrTree = T.Tree String
 

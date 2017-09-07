@@ -27,7 +27,7 @@ isNat Tzero = True
 isNat (Tsucc t) = isNat t
 isNat _ = False
 
-instance Calculus "untyped.arith" StrTree StrTree () () where
+instance Calculus "untyped.arith" StrTree StrTree () where
   newtype Term "untyped.arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
   
   isValue (ArithTerm t) = go t where
@@ -38,7 +38,7 @@ instance Calculus "untyped.arith" StrTree StrTree () () where
       | isNat t = True
       | otherwise = False
 
-  eval1 () (ArithTerm t) = fmap ArithTerm $ go t where
+  eval1 (ArithTerm t) = fmap ArithTerm $ go t where
     go (Tif Ttrue t1 t2) = return t1
     go (Tif Tfalse t1 t2) = return t2
     go (Tif t1 t2 t3) = do
