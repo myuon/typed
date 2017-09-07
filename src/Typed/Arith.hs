@@ -20,7 +20,7 @@ data TypeOfError
   deriving Show
 instance Exception TypeOfError
 
-instance Calculus "typed.arith" StrTree StrTree () where
+instance Calculus "typed.arith" StrTree StrTree () () where
   newtype Term "typed.arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
 
   isValue (ArithTerm t) = go t where

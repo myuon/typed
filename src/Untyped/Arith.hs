@@ -27,7 +27,7 @@ isNat Tzero = True
 isNat (Tsucc t) = isNat t
 isNat _ = False
 
-instance Calculus "untyped.arith" StrTree StrTree () where
+instance Calculus "untyped.arith" StrTree StrTree () () where
   newtype Term "untyped.arith" StrTree = ArithTerm StrTree deriving (Eq, Show)
   
   isValue (ArithTerm t) = go t where

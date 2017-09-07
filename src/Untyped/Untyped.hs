@@ -12,7 +12,7 @@ pattern Tapp tx ty = T.Node "app" [tx,ty]
 
 data Binding = NameBind
 
-instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
+instance Calculus "untyped" StrTree StrTree () () where
   data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)
 
   isValue (UntypedTerm t) = go t where

@@ -8,13 +8,13 @@ import GHC.TypeLits
 
 type Var = String
 
-class Calculus (c :: Symbol) trm typ ctx | c -> trm typ ctx where
+class Calculus (c :: Symbol) trm typ evctx tyctx | c -> trm typ evctx tyctx where
   data Term c trm
-  isValue :: (Calculus c trm typ ctx) => Term c trm -> Bool
-  eval1 :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
-  typeof :: (Calculus c trm typ ctx, MonadThrow m) => ctx -> Term c trm -> m typ
+  isValue :: (Calculus c trm typ evctx tyctx) => Term c trm -> Bool
+  eval1 :: (Calculus c trm typ evctx tyctx, MonadCatch m) => evctx -> Term c trm -> m (Term c trm)
+  typeof :: (Calculus c trm typ evctx tyctx, MonadThrow m) => tyctx -> Term c trm -> m typ
 
-eval :: (Calculus c trm typ ctx, MonadCatch m) => ctx -> Term c trm -> m (Term c trm)
+eval :: (Calculus c trm typ evctx tyctx, MonadCatch m) => evctx -> Term c trm -> m (Term c trm)
 eval ctx t = catch (eval1 ctx t >>= eval ctx) $ \case
   NoRuleApplies -> return t
 

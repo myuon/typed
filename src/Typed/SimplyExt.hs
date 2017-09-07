@@ -91,7 +91,7 @@ instance Show (Term "simply-ext" StrTree) where
     go (Trecord lts) = Text.unpack $ format (fromString $ (\y -> "{" ++ y ++ "}") $ intercalate ", " $ replicate (length lts) "{}") (fmap go lts)
     go (T.Node l xs) = Text.unpack $ format (fromString l) (fmap go xs)
 
-instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
+instance Calculus "simply-ext" StrTree StrTree () (M.Map Var Binding) where
   newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq)
 
   isValue (SimplyExtTerm t) = go t where

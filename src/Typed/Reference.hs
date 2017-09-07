@@ -1,41 +1,25 @@
-module Typed.Simply
-  ( module M
-  , pattern Karr
-  , pattern Tval
-  , pattern Tvar
-  , pattern Tabs
-  , pattern Tapp
-  , Term(SimplyTerm)
-  , Binding(..)
-  ) where
+module Typed.Reference where
 
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
 import Preliminaries
-import Typed.Arith as M
+import Typed.Simply
+import Typed.SimplyExt (pattern Tunit, pattern Kunit)
 
-data Binding = NameBind | VarBind StrTree
+pattern Tref t = T.Node "ref {}" [t]
+pattern Tderef t = T.Node "!{}" [t]
+pattern Tassign t1 t2 = T.Node "{} := {}" [t1,t2]
+pattern Tloc l = Tval l
+pattern Kref t = T.Node "Ref {}" [t]
 
-pattern Karr a b = T.Node "->" [a,b]
+type Loc = String
+data LocBind = LocBind StrTree
 
-pattern Tval x = T.Node x []
-pattern Tvar x = T.Node "var {}" [Tval x]
-pattern Tabs x xt t = T.Node "λ{}:{}. {}" [Tval x,xt,t]
-pattern Tapp tx ty = T.Node "({} {})" [tx,ty]
-
-data TypeOfError
-  = ArmsOfConditionalHasDifferentTypes
-  | GuardOfConditionalNotABoolean
-  | ExpectedANat
-  | WrongKindOfBindingForVariable
-  | ParameterTypeMismatch
-  | ArrowTypeExpected
-  deriving Show
-
-instance Exception TypeOfError
-
-instance Calculus "simply" StrTree StrTree () (M.Map Var Binding) where
+instance Calculus "reference" StrTree StrTree (M.Map Loc StrTree) (M.Map Var Binding, M.Map Loc StrTree) where
+  data Term "reference" StrTree = ReferenceTerm StrTree deriving (Eq, Show)
+  
+{-
   data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
   isValue (SimplyTerm t) = go t where
@@ -129,4 +113,7 @@ instance Calculus "simply" StrTree StrTree () (M.Map Var Binding) where
         | otherwise = Tabs y yt (go t)
       go (Tapp t1 t2) = Tapp (go t1) (go t2)
 
+
+
+-}
 
