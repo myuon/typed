@@ -14,9 +14,8 @@ pattern Tloc l = Tval l
 pattern Kref t = T.Node "Ref {}" [t]
 
 type Loc = String
-data LocBind = LocBind StrTree
 
-instance Calculus "reference" StrTree StrTree (M.Map Loc StrTree) (M.Map Var Binding, M.Map Loc StrTree) where
+instance Calculus "reference" StrTree StrTree (M.Map Loc StrTree) (M.Map Var StrTree, M.Map Loc StrTree) where
   data Term "reference" StrTree = ReferenceTerm StrTree deriving (Eq, Show)
   
 {-

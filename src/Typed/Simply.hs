@@ -6,7 +6,6 @@ module Typed.Simply
   , pattern Tabs
   , pattern Tapp
   , Term(SimplyTerm)
-  , Binding(..)
   ) where
 
 import Control.Monad.Catch
@@ -14,8 +13,6 @@ import qualified Data.Map as M
 import qualified Data.Tree as T
 import Preliminaries
 import Typed.Arith as M
-
-data Binding = NameBind | VarBind StrTree
 
 pattern Karr a b = T.Node "->" [a,b]
 
@@ -35,7 +32,7 @@ data TypeOfError
 
 instance Exception TypeOfError
 
-instance Calculus "simply" StrTree StrTree () (M.Map Var Binding) where
+instance Calculus "simply" StrTree StrTree () (M.Map Var StrTree) where
   data Term "simply" StrTree = SimplyTerm StrTree deriving (Eq, Show)
 
   isValue (SimplyTerm t) = go t where
@@ -69,12 +66,9 @@ instance Calculus "simply" StrTree StrTree () (M.Map Var Binding) where
       case tt of
         Knat -> return Knat
         _ -> throwM ExpectedANat
-    go ctx (Tvar x) = case ctx M.! x of
-      NameBind -> throwM WrongKindOfBindingForVariable
-      VarBind typ -> return typ
+    go ctx (Tvar x) = return $ ctx M.! x
     go ctx (Tabs x xt t) = do
-      let ctx' = M.insert x (VarBind xt) ctx
-      tt <- go ctx' t
+      tt <- go (M.insert x xt ctx) t
       return $ Karr xt tt
     go ctx (Tapp tx ty) = do
       txTyp <- go ctx tx

@@ -91,7 +91,7 @@ instance Show (Term "simply-ext" StrTree) where
     go (Trecord lts) = Text.unpack $ format (fromString $ (\y -> "{" ++ y ++ "}") $ intercalate ", " $ replicate (length lts) "{}") (fmap go lts)
     go (T.Node l xs) = Text.unpack $ format (fromString l) (fmap go xs)
 
-instance Calculus "simply-ext" StrTree StrTree () (M.Map Var Binding) where
+instance Calculus "simply-ext" StrTree StrTree () (M.Map Var StrTree) where
   newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq)
 
   isValue (SimplyExtTerm t) = go t where
@@ -131,11 +131,9 @@ instance Calculus "simply-ext" StrTree StrTree () (M.Map Var Binding) where
       case tt of
         Knat -> return Kbool
         _ -> throwM ExpectedANat
-    go ctx (Tvar x) = case ctx M.! x of
-      NameBind -> throwM WrongKindOfBindingForVariable
-      VarBind typ -> return typ
+    go ctx (Tvar x) = return $ ctx M.! x
     go ctx (Tabs x xt t) = do
-      let ctx' = M.insert x (VarBind xt) ctx
+      let ctx' = M.insert x xt ctx
       tt <- go ctx' t
       return $ Karr xt tt
     go ctx (Tapp tx ty) = do
@@ -154,7 +152,7 @@ instance Calculus "simply-ext" StrTree StrTree () (M.Map Var Binding) where
         else throwM $ ExpectedType typ tt
     go ctx (Tlet x t1 t2) = do
       t1T <- go ctx t1
-      t2T <- go (M.insert x (VarBind t1T) ctx) t2
+      t2T <- go (M.insert x t1T ctx) t2
       return t2T
     go ctx (Tpair t1 t2) = Kpair <$> go ctx t1 <*> go ctx t2
     go ctx (Tpr1 t) = do
@@ -206,7 +204,7 @@ instance Calculus "simply-ext" StrTree StrTree () (M.Map Var Binding) where
         Kvariant lts | sort (fmap (\(Tmatch l _ _) -> l) lxt) == sort (fmap (\(Ktagged l _) -> l) lts) -> do
           ts <- forM lxt $ \(Tmatch li xi ti) -> do
             tTi <- lookup' li lts
-            go (M.insert xi (VarBind tTi) ctx) ti
+            go (M.insert xi tTi ctx) ti
           if length (nub ts) <= 1
             then return $ head ts
             else throwM $ CaseMatchNotHaveSameType ts
