@@ -13,7 +13,6 @@ import Control.Monad
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
-import Data.Unique
 import Preliminaries
 import Typed.Simply as M (pattern Tval, pattern Tvar, pattern Tabs, pattern Tapp, pattern Karr)
 import Typed.SimplyExt as M (pattern Tunit, pattern Kunit)
