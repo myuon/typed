@@ -468,14 +468,150 @@ proof rule
   finally show "Pproj2 (Ppair M N) \<longrightarrow>\<beta>* N" by simp
 qed
 
-subsubsection {* numeric function *}
+subsubsection {* definability *}
 
-definition L1defined where
-  "L1defined f F = (\<forall>n. (F $ ChurchN n) =\<beta> ChurchN (f n))"
+definition L1defined :: "(nat \<Rightarrow> nat) \<Rightarrow> lambda \<Rightarrow> bool" where
+  "L1defined f F = (\<forall>(n :: nat). F $ ChurchN n =\<beta> ChurchN (f n))"
 
-definition L1definable where
-  "L1definable f = (\<exists>F. L1defined f F)"
+definition L1definable :: "(nat \<Rightarrow> nat) \<Rightarrow> bool" where
+  "L1definable f = (\<exists>F. L1defined f F)"                            
 
+subsubsection {* initial functions *}
 
+definition iS where
+  "iS = Suc"
+definition iZ where
+  "iZ = (\<lambda>x. 0)"  
 
-end
+lemma iZ_defined: "L1defined iZ (lam [nx]. lam [nf]. lam [ny]. Var ny)"
+proof (simp add: L1defined_def iZ_def, auto, rule)
+  fix n
+  have f1f: "nf \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+    by (simp add: abs_fresh(1) fresh_atm)
+  have f1y: "ny \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+    apply (induction n)
+      apply (simp add: abs_fresh fresh_atm)
+      apply (simp add: abs_fresh fresh_atm fresh_prod)
+    done
+  
+  have "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* (lam [nf].lam [ny].Var ny)"
+    apply (rule, rule, rule, subst subst.simps, rule f1f, subst subst.simps, rule f1y)
+    apply (subst forget, simp add: fresh_atm, rule bs_refl)
+    done
+  also have "... \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nx"
+    proof (rule bs_abs)
+      have h: "lam [ny].Var ny = lam [nx].Var nx"
+        apply (subst lambda.inject, subst alpha, rule disjI2, rule)
+        apply (simp add: fresh_atm, rule, simp add: swap_simps, simp add: fresh_atm)
+        done
+      show "lam [ny].Var ny \<longrightarrow>\<beta>* lam [nx].Var nx"
+        by (subst h, rule bs_refl)
+    qed
+  finally show "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nx"
+    by simp
+qed
+
+lemma iS_defined: "L1defined iS (lam [nx]. lam [ny]. lam [nz]. Var ny $ (Var nx $ Var ny $ Var nz))"
+proof (simp add: L1defined_def iS_def, auto, rule)
+  fix n
+  have f1x: "ny \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+    apply (induction n)
+      apply (simp add: abs_fresh fresh_atm)
+      apply (simp add: abs_fresh fresh_atm fresh_prod)
+    done
+  have f1z: "nz \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+    apply (induction n)
+      apply (simp add: abs_fresh fresh_atm)
+      apply (simp add: abs_fresh fresh_atm fresh_prod)
+    done
+  have f2: "nx \<sharp> (nf, Var ny)"
+    by (simp add: fresh_atm)
+  
+  have "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ ((lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) $ Var ny $ Var nz)"
+    apply (rule, rule, rule, subst subst.simps, rule f1x, rule bs_abs, subst subst.simps, rule f1z, rule bs_abs)
+    apply (simp, rule bs_refl)
+    done
+  also have "... \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ (iter (op $ (Var ny)) n (Var nz))"
+    apply (rule bs_abs, rule bs_abs, rule bs_app2)
+    apply (rule, rule, rule b_app1, rule b_beta)
+    apply (subst subst.simps, rule f2, rule, rule, rule)
+    apply (induction n, auto, rule bs_app2, simp)
+    done
+  also have "... = lam [nf].lam [nx].Var nf $ (iter (op $ (Var nf)) n (Var nx))"
+    apply (subst lambda.inject, subst alpha, rule disjI2, rule)
+    apply (simp, rule, simp add: swap_simps)
+    apply (subst lambda.inject, subst alpha, rule disjI2, rule)
+    apply (simp, rule, simp add: swap_simps)
+    apply (induction n, auto simp add: swap_simps)
+    apply (simp add: fresh_atm)
+    apply (induction n, auto simp add: swap_simps fresh_atm)
+    apply (induction n)
+      apply (simp add: fresh_atm abs_fresh)
+      apply (simp add: fresh_atm abs_fresh)
+    done
+  finally show "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nf $ iter (op $ (Var nf)) n (Var nx)"
+    by simp
+qed
+
+subsubsection {* lemmas *}
+
+text {*
+  L1defined fx Fx <-> \<forall>n. Fx $ (lam f. lam x. iter (f -) n x) = lam f. lam x. iter (f -) (fx n) x
+  L1defined gx Gx <-> \<forall>n. Gx $ (lam f. lam x. iter (f -) n x) = lam f. lam x. iter (f -) (gx n) x
+
+  gx (fx n)
+  = lam f. lam x. iter (f -) (gx (fx n)) x
+  = Gx $ (lam f. lam x. iter (f -) (fx n) x)
+  = Gx $ Fx $ n
+*}                              
+
+lemma L1definable_closed_under_compose:
+  assumes "L1definable f" "L1definable g"
+  shows "L1definable (\<lambda>x. f (g x))"
+proof (simp add: L1definable_def)
+  from assms(1) obtain F where
+    F: "L1defined f F"
+    using L1definable_def by blast
+  from assms(2) obtain G where
+    G: "L1defined g G"
+    using L1definable_def by blast
+
+  have "\<exists>c :: name. c \<sharp> (F,G)"
+    apply (generate_fresh "name")
+    by blast
+  then obtain x :: name where
+    x_fresh: "x \<sharp> (F,G)" by blast
+  
+  define H where "H = lam [x]. F $ (G $ Var x)"
+
+  have Q: "\<forall>n. H $ ChurchN n =\<beta> ChurchN (f (g n))"
+    proof (rule, rule beq_sym)
+      fix n                                         
+      have "ChurchN (f (g n)) =\<beta> F $ (ChurchN (g n))"
+        apply (rule beq_sym)
+        using F unfolding L1defined_def apply simp
+        done
+      also have "... =\<beta> F $ (G $ (ChurchN n))"
+        apply (rule beq_sym)
+        apply (rule beq_app2)
+        using G unfolding L1defined_def apply simp
+        done
+      also have "... =\<beta> H $ (ChurchN n)"
+        apply (rule beq_sym)
+        unfolding H_def
+        apply (rule, rule, rule, rule)
+        apply (subst subst.simps, subst forget, simp add: x_fresh)
+        apply (rule bs_app2)
+        apply (subst subst.simps, subst forget, simp add: x_fresh)
+        apply (rule bs_app2)
+        apply (simp, rule bs_refl)
+        done
+      finally show "ChurchN (f (g n)) =\<beta> H $ ChurchN n" by simp
+    qed
+  
+  show "\<exists>F. L1defined (\<lambda>x. f (g x)) F"
+    unfolding L1defined_def
+    by (rule, rule Q)
+qed
+
+end                                             
