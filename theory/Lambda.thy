@@ -38,7 +38,7 @@ abbreviation nz where
 
 subsubsection {* substitution *}  
 
-nominal_primrec subst :: "lambda \<Rightarrow> name \<Rightarrow> lambda \<Rightarrow> lambda" ("_[_::=_]") where
+nominal_primrec subst :: "lambda \<Rightarrow> name \<Rightarrow> lambda \<Rightarrow> lambda" ("_[_::=_]" [150] 120) where
   "(Var x)[y ::= s] = (if x = y then s else (Var x))"
   | "(App M1 M2)[y ::= s] = App (M1[y ::= s]) (M2[y ::= s])"
   | "x \<sharp> (y,s) \<Longrightarrow> (lam [x].M)[y ::= s] = lam [x].(M[y ::= s])"
@@ -65,9 +65,9 @@ apply (nominal_induct t avoiding: z y s rule: lambda.strong_induct)
 apply (auto simp add: abs_fresh fresh_atm)
 done
 
-lemma subst:
+lemma substitution:
   assumes a: "x \<noteq> y" "x \<sharp> u"
-  shows "(t[x::=s][y::=u]) = (t[y::=u][x::=s[y::=u]])"
+  shows "(t[x::=s]) [y::=u] = (t[y::=u]) [x::=s[y::=u]]"
 using a
 apply (nominal_induct t avoiding: x y s u rule: lambda.strong_induct)
 apply (auto simp add: fresh_fact forget)
@@ -140,7 +140,7 @@ apply (rule, rule bs_app2, simp)
 apply (rule beq_sym, simp)
 apply (rule beq_trans, simp, simp)
 done
-
+                                       
 subsection {* free variables *}
 
 (*
@@ -314,9 +314,9 @@ proof-
     apply (simp add: subst.simps(3) [OF f4x])
     apply (rule bs_trans, rule, rule b_beta)
     proof-
-      have h: "(iter (op $ (Var nf)) m (Var nx))[nf::=Var np][nx::=Var nq] = iter (op $ (Var np)) m (Var nq)"
+      have h: "(iter (op $ (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] = iter (op $ (Var np)) m (Var nq)"
         by (induction m, auto)
-      show "(iter (op $ (Var nf)) m (Var nx))[nf::=Var np][nx::=Var nq] \<longrightarrow>\<beta>* iter (op $ (Var np)) m (Var nq)" 
+      show "(iter (op $ (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] \<longrightarrow>\<beta>* iter (op $ (Var np)) m (Var nq)" 
         by (subst h, rule bs_refl)
     qed
   also have "... = lam [np]. lam [nq]. (lam [nf]. lam [nx]. iter (\<lambda>k. Var nf $ k) n (Var nx)) $ Var np $ (iter (\<lambda>k. Var np $ k) m (Var nq))" by simp
@@ -326,11 +326,11 @@ proof-
     apply (rule bs_abs, rule bs_abs)
     apply (rule bs_trans, rule, rule b_beta)
     proof-
-      have h: "(iter (op $ (Var nf)) n (Var nx))[nf::=Var np][nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
+      have h: "(iter (op $ (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
         apply (induction n, auto)
         apply (rule bs_app2, simp)
         done
-      show "(iter (op $ (Var nf)) n (Var nx))[nf::=Var np][nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
+      show "(iter (op $ (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
         by (simp add: h)
     qed
   also have "... = lam [np]. lam [nq]. (iter (\<lambda>k. Var np $ k) (n + m) (Var nq))" by (simp add: iter_join)
@@ -356,6 +356,7 @@ proof-
   show ?thesis
     by (rule, rule lem)
 qed
+
 
 subsubsection {* Boolean, conditional *}
 
@@ -614,4 +615,363 @@ proof (simp add: L1definable_def)
     by (rule, rule Q)
 qed
 
-end                                             
+subsection {* reduction *}
+
+nominal_primrec beta_nf where
+  "beta_nf (Var v) = True"
+  | "beta_nf (App M N) = (if (\<exists>x. \<exists>y. M = lam [x]. y) then False else (beta_nf M \<and> beta_nf N))"
+  | "beta_nf (lam [x]. M) = beta_nf M"
+  apply (finite_guess)+
+  apply (rule TrueI)+
+  defer
+  apply (fresh_guess)+
+  by (simp add: fresh_bool)
+
+inductive long_beta' :: "lambda \<Rightarrow> lambda \<Rightarrow> bool" where
+  bs_refl' [intro]: "long_beta' t t"
+| bs_cons' [intro]: "\<lbrakk> t1 \<rightarrow>\<beta> t2; long_beta' t2 t3 \<rbrakk> \<Longrightarrow> long_beta' t1 t3"
+
+inductive long_beta_len :: "lambda \<Rightarrow> lambda \<Rightarrow> nat \<Rightarrow> bool" where
+  bsl_refl: "long_beta_len t t 0"
+| bsl_cons: "\<lbrakk> t1 \<rightarrow>\<beta> t2; long_beta_len t2 t3 m \<rbrakk> \<Longrightarrow> long_beta_len t1 t3 (Suc m)"
+
+lemma long_beta_len_0: "long_beta_len M N 0 = (M = N)"
+proof rule
+  assume h: "long_beta_len M N 0"
+  show "M = N"
+    by (rule long_beta_len.cases [OF h], auto)
+next
+  show "M = N \<Longrightarrow> long_beta_len M N 0" by (simp, rule)
+qed
+
+lemma long_beta_len_Suc: "long_beta_len M N (Suc n) = (\<exists>L. M \<rightarrow>\<beta> L \<and> long_beta_len L N n)"
+proof rule
+  assume h: "long_beta_len M N (Suc n)"
+  show "\<exists>L. M \<rightarrow>\<beta> L \<and> long_beta_len L N n"
+    by (rule long_beta_len.cases [OF h], auto)
+next
+  assume "\<exists>L. M \<rightarrow>\<beta> L \<and> long_beta_len L N n"
+  then obtain L where L: "M \<rightarrow>\<beta> L" "long_beta_len L N n" by fastforce
+  show "long_beta_len M N (Suc n)"
+    by (rule, rule L, rule L)
+qed
+
+lemma bsl_trans [trans]: "\<And>t1 t2 t3. \<lbrakk> long_beta_len t1 t2 n; long_beta_len t2 t3 m \<rbrakk> \<Longrightarrow> long_beta_len t1 t3 (n + m)"
+proof (induction n)
+  case 0
+  assume hyp: "long_beta_len t1 t2 0" "long_beta_len t2 t3 m"
+  have t12: "t1 = t2"
+    by (rule long_beta_len.cases [OF hyp(1)], auto)
+  show ?case
+    by (subst t12, simp, rule hyp)
+next
+  case (Suc n)
+  assume hyp: "\<And>s1 s2 s3. long_beta_len s1 s2 n \<Longrightarrow> long_beta_len s2 s3 m \<Longrightarrow> long_beta_len s1 s3 (n + m)"
+  and hyp': "long_beta_len t1 t2 (Suc n)" "long_beta_len t2 t3 m"
+  
+  obtain t12 where
+    t12_prop: "t1 \<rightarrow>\<beta> t12" "long_beta_len t12 t2 n"
+    by (rule long_beta_len.cases [OF hyp'(1)], auto)
+  
+  show ?case
+    by (simp, rule, rule t12_prop, rule hyp, rule t12_prop, rule hyp')
+qed
+
+lemma long_beta_discard_len: "long_beta_len M N k \<Longrightarrow> M \<longrightarrow>\<beta>* N"
+apply (rule long_beta_len.induct, auto)
+apply (rule bs_trans, auto)
+done
+
+lemma long_beta'_len: "long_beta' M N = (\<exists>k. long_beta_len M N k)"
+apply (rule)
+  apply (rule long_beta'.induct, simp)
+  apply (rule, rule bsl_refl)
+proof-
+  fix t1 t2 t3
+  assume "long_beta' M N"
+  and hyp: "t1 \<rightarrow>\<beta> t2" "long_beta' t2 t3" "\<exists>k. long_beta_len t2 t3 k"
+  
+  from hyp(3) obtain k where k: "long_beta_len t2 t3 k" by fastforce
+  show "\<exists>k. long_beta_len t1 t3 k"
+    by (rule, rule, rule hyp, rule k)
+next
+  assume "\<exists>k. long_beta_len M N k"
+  then obtain k where k_prop: "long_beta_len M N k" by fastforce
+
+  have Q: "\<And>M N. long_beta_len M N k \<Longrightarrow> long_beta' M N"
+    apply (induction k)
+      apply (simp add: long_beta_len_0, rule bs_refl')
+    apply (simp add: long_beta_len_Suc)
+    apply blast
+    done
+  show "long_beta' M N"
+    by (rule Q [OF k_prop])
+qed
+
+lemma long_beta_exist_len: "M \<longrightarrow>\<beta>* N = (\<exists>k. long_beta_len M N k)"
+apply rule
+  apply (rule long_beta.induct, auto)
+  apply (rule, rule bsl_refl, rule, rule, simp, rule bsl_refl)
+  apply (rule, rule bsl_trans, simp, simp)
+proof-
+  fix k
+  have Q: "\<And>M N. long_beta_len M N k \<Longrightarrow> M \<longrightarrow>\<beta>* N"
+    apply (induction k)
+      apply (simp add: long_beta_len_0, rule bs_refl)
+    apply (auto simp add: long_beta_len_Suc, rule bs_trans, rule bs_step)
+    apply simp
+    apply simp
+    done
+  show "long_beta_len M N k \<Longrightarrow> M \<longrightarrow>\<beta>* N"
+    by (rule Q)
+qed
+
+lemma long_beta_alt: "long_beta M N = long_beta' M N"
+by (simp add: long_beta'_len long_beta_exist_len)
+
+subsection {* Parallel reduction *}
+
+lemma subst_eqvt [eqvt]:
+  fixes \<pi> :: "name prm"
+  shows "\<pi> \<bullet> (t [x ::= s]) = (\<pi> \<bullet> t) [(\<pi> \<bullet> x) ::= (\<pi> \<bullet> s)]"
+apply (nominal_induct t avoiding: x s rule: strong_induct)
+apply (auto simp add: perm_bij fresh_atm fresh_bij)
+done
+
+inductive par_beta :: "lambda \<Rightarrow> lambda \<Rightarrow> bool" (infixl "\<Rightarrow>\<beta>" 50) where
+  bp_var: "Var x \<Rightarrow>\<beta> Var x"
+| bp_abs: "M \<Rightarrow>\<beta> N \<Longrightarrow> (lam [x].M) \<Rightarrow>\<beta> (lam [x].N)"
+| bp_app: "\<lbrakk> M1 \<Rightarrow>\<beta> N1; M2 \<Rightarrow>\<beta> N2 \<rbrakk> \<Longrightarrow> App M1 M2 \<Rightarrow>\<beta> App N1 N2"
+| bp_beta': "\<lbrakk> x \<sharp> (N1,N2); M1 \<Rightarrow>\<beta> M2; N1 \<Rightarrow>\<beta> N2 \<rbrakk> \<Longrightarrow> App (lam [x]. M1) N1 \<Rightarrow>\<beta> M2 [x::=N2]"
+
+equivariance par_beta
+
+nominal_inductive par_beta
+by (simp_all add: abs_fresh fresh_fact)
+
+lemma bp_beta:
+  assumes "M1 \<Rightarrow>\<beta> M2" "N1 \<Rightarrow>\<beta> N2"
+  shows "App (lam [x]. M1) N1 \<Rightarrow>\<beta> M2 [x::=N2]"
+proof-
+  obtain y :: name where y: "y \<sharp> (x,M1,N1,M2,N2)"
+    by (rule exists_fresh, rule fin_supp, blast)
+  have "App (lam [x]. M1) N1 = App (lam [y]. ([(y,x)] \<bullet> M1)) N1" using y
+    by (simp add: lambda.inject alpha' fresh_prod fresh_atm, auto)
+  also have "... \<Rightarrow>\<beta> ([(y,x)] \<bullet> M2) [y::=N2]"
+    by (rule, simp add: y, rule eqvt, rule assms, rule assms)
+  also have "... = M2 [x::=N2]" using y by (simp add: subst_rename[symmetric])
+  finally show ?thesis by simp
+qed
+
+subsubsection {* coherence *}
+
+lemma pb_from_Var:
+  assumes "Var x \<Rightarrow>\<beta> M"
+  shows "M = Var x"
+by (rule par_beta.cases [OF assms], auto)
+
+subsubsection {* reduction conversion *}
+
+lemma bp_refl: "M \<Rightarrow>\<beta> M"
+apply (nominal_induct M rule: lambda.strong_induct)
+apply (rule, rule, simp, simp, rule, simp)
+done
+
+lemma one_beta_par: "\<And>N. M \<rightarrow>\<beta> N \<Longrightarrow> M \<Rightarrow>\<beta> N"
+apply (nominal_induct M rule: lambda.strong_induct)
+apply (rule beta.cases, simp+)
+proof-
+  fix M1 M2 N
+  assume hyp: "\<And>N. M1 \<rightarrow>\<beta> N \<Longrightarrow> M1 \<Rightarrow>\<beta> N" "\<And>N. M2 \<rightarrow>\<beta> N \<Longrightarrow> M2 \<Rightarrow>\<beta> N" "M1 $ M2 \<rightarrow>\<beta> N"
+  show "M1 $ M2 \<Rightarrow>\<beta> N"
+    apply (rule beta.induct [OF hyp(3)])
+    apply (rule, simp, rule bp_refl)
+    apply (rule, rule bp_refl, simp)
+    apply (rule, simp, rule bp_beta, rule bp_refl, rule bp_refl)
+    done
+next
+  fix n M N
+  assume hyp: "\<And>N. M \<rightarrow>\<beta> N \<Longrightarrow> M \<Rightarrow>\<beta> N" "lam [n]. M \<rightarrow>\<beta> N"
+  show "lam [n]. M \<Rightarrow>\<beta> N"
+    apply (rule beta.induct [OF hyp(2)])
+    apply (rule, simp, rule bp_refl)
+    apply (rule, rule bp_refl, simp)
+    apply (rule, simp, rule bp_beta, rule bp_refl, rule bp_refl)
+    done
+qed
+
+lemma par_beta_long: "\<And>N. M \<Rightarrow>\<beta> N \<Longrightarrow> M \<longrightarrow>\<beta>* N"
+apply (nominal_induct M rule: lambda.strong_induct)
+apply (rule par_beta.cases, simp, simp, rule bs_refl, simp, simp, simp)
+proof-
+  fix M1 M2 N
+  assume hyp: "\<And>N. M1 \<Rightarrow>\<beta> N \<Longrightarrow> M1 \<longrightarrow>\<beta>* N" "\<And>N. M2 \<Rightarrow>\<beta> N \<Longrightarrow> M2 \<longrightarrow>\<beta>* N" "M1 $ M2 \<Rightarrow>\<beta> N"
+  show "M1 $ M2 \<longrightarrow>\<beta>* N"
+    apply (rule par_beta.induct [OF hyp(3)], rule bs_refl, rule bs_abs, simp)
+    apply (rule bs_trans, rule bs_app1, simp, rule bs_app2, simp)
+    apply (rule bs_trans, rule bs_app1, rule bs_abs, simp, rule bs_trans, rule bs_app2, simp, rule, rule)
+    done
+next
+  fix n M N
+  assume hyp: "\<And>N. M \<Rightarrow>\<beta> N \<Longrightarrow> M \<longrightarrow>\<beta>* N" "lam [n]. M \<Rightarrow>\<beta> N"
+  have "\<exists>N'. N = lam [n]. N' \<longrightarrow> M \<Rightarrow>\<beta> N'"
+    apply (rule par_beta.induct [OF hyp(2)], simp)
+    using bp_refl apply auto[1] apply simp
+    using bp_refl apply blast
+    done
+  then obtain N' where
+    N': "N = lam [n]. N' \<Longrightarrow> M \<Rightarrow>\<beta> N'"
+    using bp_refl by blast
+  show "lam [n]. M \<longrightarrow>\<beta>* N"
+    apply (cases "N = lam [n]. N'")
+    apply (simp, rule bs_abs, rule hyp, rule N', simp)
+    apply (rule par_beta.induct [OF hyp(2)])
+    apply (rule bs_refl, rule bs_abs, simp)
+    apply (rule bs_trans, rule bs_app1, simp, rule bs_app2, simp)
+    apply (rule bs_trans, rule bs_app1, rule bs_abs, simp)
+    apply (rule bs_trans, rule bs_app2, simp, rule, rule)
+    done
+qed    
+
+text {*
+  lemma: Pi => Qi ==> P1[x:=P2] => Q1[x:=Q2]
+  proof.
+    induction on P1 => Q1.
+    ia) x => x
+    x[x:=P2] => x[x:=Q2] by assumption
+    ib) y => y
+    clear
+    ii) \y.M => \y.N (where M => N)
+    \y.M[x:=P2] => \y.N[x:=Q2] by IH
+    iii) M1M2 => N1N2 (where Mi => Ni)
+    M1M2[x:=P2] = M1[x:=P2]M2[x:=P2] => N1[x:=Q2]N2[x:=Q2] = N1N2[x:=P2]
+    iv) (\y.M1)M2 => N1[y:=N2] (where Mi => Ni)
+    ((\y.M1)M2)[x:=P2] = (\y.M1[x:=P2])M2[x:=P2] => N1[x:=Q2][y:=(N2[x:=Q2])] = N1[y:=N2][x:=Q2] by subst.
+  qed
+*}
+
+lemma abs_alpha: "c \<sharp> (xa,M) \<Longrightarrow> lam [xa]. M = lam [c]. ([(c,xa)] \<bullet> M)"
+apply (subst lambda.inject, subst alpha)
+apply (rule disjI2, rule)
+apply (simp add: fresh_prod, simp add: fresh_atm, fastforce)
+apply (rule, simp add: perm_swap(2))
+apply (subst fresh_left, simp, simp add: swap_simps)
+done
+
+(*
+lemma par_beta_subst:
+  "\<And>P2 Q2. \<lbrakk> P1 \<Rightarrow>\<beta> Q1; P2 \<Rightarrow>\<beta> Q2 \<rbrakk> \<Longrightarrow> P1 [x ::= P2] \<Rightarrow>\<beta> Q1 [x ::= Q2]"
+apply (rule par_beta.induct [of P1 Q1], simp)
+apply (simp, rule, rule)
+prefer 2
+apply (simp, rule, simp, simp)
+proof-
+  fix P2 Q2 M N xa
+  assume hyp: "P1 \<Rightarrow>\<beta> Q1" "P2 \<Rightarrow>\<beta> Q2" "M \<Rightarrow>\<beta> N" "M[x::=P2] \<Rightarrow>\<beta> N[x::=Q2]"
+  show "(lam [xa].M)[x::=P2] \<Rightarrow>\<beta> (lam [xa].N)[x::=Q2]"
+    proof (generate_fresh "name")
+      fix c :: name
+      assume c_fresh: "c \<sharp> (M, N, P2, Q2, x, xa)"
+      have "(lam [xa].M)[x::=P2] = (lam [c]. ([(c,xa)] \<bullet> M))[x::=P2]"
+        by (subst abs_alpha [of c], auto simp add: c_fresh)
+      also have "... = lam [c]. (([(c,xa)] \<bullet> M)[x::=P2])"
+        by (auto simp add: c_fresh)
+      also have "... = lam [c]. (([(c,xa)]\<bullet>M)[([(c,xa)]\<bullet>x)::=([(c,xa)]\<bullet>P2)])"
+        apply (subst forget)
+        
+
+      show "(lam [xa].M)[x::=P2] \<Rightarrow>\<beta> (lam [xa].N)[x::=Q2]"
+        apply (subst p, subst subst.simps, simp add: c_fresh)
+        apply (simp)
+*)
+
+lemma long_beta_induct_len:
+  assumes "M \<longrightarrow>\<beta>* N"
+  and "\<And>M. P M M"
+  and "\<And>L M N. M \<rightarrow>\<beta> L \<Longrightarrow> P L N \<Longrightarrow> P M N"
+  shows "P M N"
+using assms(1) apply (simp add: long_beta_alt)
+proof-
+  have Q: "\<And>M N. long_beta' M N \<Longrightarrow> P M N"
+    apply (rule long_beta'.induct, auto)
+      apply (rule assms(2))
+      apply (rule assms(3), simp, simp)
+    done
+
+  show ?thesis
+    using assms(1) apply (simp add: long_beta_alt)
+    apply (rule Q, simp)
+    done
+qed
+
+lemma beta_var: "Var n \<longrightarrow>\<beta>* N \<Longrightarrow> Var n = N"
+proof (simp add: long_beta_exist_len, auto)
+  fix l
+  assume hyp: "long_beta_len (Var n) N l"
+  
+  have "long_beta_len (Var n) N l \<Longrightarrow> Var n = N"
+    apply (induction l)
+    apply (simp add: long_beta_len_0)
+    proof-
+      fix l
+      assume p: "long_beta_len (Var n) N l \<Longrightarrow> Var n = N" "long_beta_len (Var n) N (Suc l)"
+      from long_beta_len_Suc p(2)
+      obtain L where
+        L: "Var n \<rightarrow>\<beta> L" by fastforce
+      have False
+        by (rule beta.cases [OF L], auto)
+      then show "Var n = N" by simp
+    qed
+  then show "Var n = N"
+    using hyp by simp
+qed    
+
+lemma nat_leq_induct_2:
+  fixes n :: nat
+  assumes "P 0" "P 1"
+  and "\<forall>n\<ge>2. \<forall>m<n. P m \<longrightarrow> P n"
+  shows "P n"
+proof (induction n, rule assms)
+  fix n
+  show "P n \<Longrightarrow> P (Suc n)"
+    apply (induction n)
+      using assms(2) apply simp
+    using assms(3)
+    using numeral_2_eq_2 by force
+qed
+
+text {*
+  lemma: beta_nf M; M => N ==> M = N
+  proof:
+    induction on M -> N
+    i) Var x -> N  ~>  Var x => N  ~>  
+*}
+
+lemma beta_nf_pb: "\<lbrakk> beta_nf M; M \<Rightarrow>\<beta> N \<rbrakk> \<Longrightarrow> M = N"
+using par_beta.induct [of M N "\<lambda>x y. beta_nf x \<longrightarrow> x \<Rightarrow>\<beta> y \<longrightarrow> x = y"]
+by (rule, auto)
+
+lemma beta_nf_lb: "\<lbrakk> beta_nf M; M \<longrightarrow>\<beta>* N \<rbrakk> \<Longrightarrow> M = N"
+apply (simp add: long_beta_alt)
+using long_beta'.induct [of M N "\<lambda>x y. beta_nf x \<and> long_beta' x y \<longrightarrow> x = y"] apply rule
+apply (simp, simp, simp)
+defer
+apply (simp, simp)
+proof (rule)
+  fix t1 t2 t3
+  assume "beta_nf M" "long_beta' M N"
+  and hyp: "t1 \<rightarrow>\<beta> t2" "long_beta' t2 t3" "beta_nf t2 \<longrightarrow> t2 = t3" "beta_nf t1 \<and> long_beta' t1 t3"
+  have p1: "t1 = t2"
+    apply (rule beta_nf_pb, simp add: hyp(4))
+    apply (rule one_beta_par, rule hyp)
+    done
+  also have "... = t3"
+    using hyp by (simp add: p1)
+  finally show "t1 = t3" by simp 
+qed
+
+lemma beta_subst: "M \<rightarrow>\<beta> M' \<Longrightarrow> M[x::=N] \<rightarrow>\<beta> M'[x::=N]"
+apply (rule beta.induct [of M M'])
+apply (simp, simp, rule b_app1, simp, simp, rule b_app2, simp)
+
+end
