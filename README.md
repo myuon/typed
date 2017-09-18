@@ -1,5 +1,7 @@
 # Typed
 
+## Implementation
+
 Based on [TaPL](https://www.amazon.co.jp/dp/B00AJXZ5JE/ref=dp-kindle-redirect?_encoding=UTF8&btkr=1)
 
 - Preliminaries
@@ -11,3 +13,8 @@ Based on [TaPL](https://www.amazon.co.jp/dp/B00AJXZ5JE/ref=dp-kindle-redirect?_e
   - [Arith](src/Typed/Arith.hs): Arithmetic Expression (bool, nat)
   - [Simply](src/Typed/Simply.hs): Simply Typed (with explicit type annotation)
   - [SimplyExt](src/Typed/SimplyExt.hs): Extended Simply; base, unit, tuple, record, sum, variant, polymorphic list type (with explicit type annotation)
+
+## Proofs
+
+- Untyped
+  - [Lambda.thy](proof/Lambda.thy): Untyped Lambda Calculus (beta reduction, fixedpoint, definability, Church-Rosser)
