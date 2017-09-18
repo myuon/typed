@@ -17,4 +17,4 @@ Based on [TaPL](https://www.amazon.co.jp/dp/B00AJXZ5JE/ref=dp-kindle-redirect?_e
 ## Proofs
 
 - Untyped
-  - [Lambda.thy](proof/Lambda.thy): Untyped Lambda Calculus (beta reduction, fixedpoint, definability, Church-Rosser)
+  - [Lambda.thy](theory/Lambda.thy): Untyped Lambda Calculus (beta reduction, fixedpoint, definability, Church-Rosser)
