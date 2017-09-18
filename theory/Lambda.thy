@@ -905,24 +905,7 @@ next
     apply (rule bs_trans, rule bs_app1, rule bs_abs, simp)
     apply (rule bs_trans, rule bs_app2, simp, rule, rule b_beta)
     done
-qed    
-
-text {*
-  lemma: Pi => Qi ==> P1[x:=P2] => Q1[x:=Q2]
-  proof.
-    induction on P1 => Q1.
-    ia) x => x
-    x[x:=P2] => x[x:=Q2] by assumption
-    ib) y => y
-    clear
-    ii) \y.M => \y.N (where M => N)
-    \y.M[x:=P2] => \y.N[x:=Q2] by IH
-    iii) M1M2 => N1N2 (where Mi => Ni)
-    M1M2[x:=P2] = M1[x:=P2]M2[x:=P2] => N1[x:=Q2]N2[x:=Q2] = N1N2[x:=P2]
-    iv) (\y.M1)M2 => N1[y:=N2] (where Mi => Ni)
-    ((\y.M1)M2)[x:=P2] = (\y.M1[x:=P2])M2[x:=P2] => N1[x:=Q2][y:=(N2[x:=Q2])] = N1[y:=N2][x:=Q2] by subst.
-  qed
-*}
+qed
 
 lemma abs_alpha: "c \<sharp> (xa,M) \<Longrightarrow> lam [xa]. M = lam [c]. ([(c,xa)] \<bullet> M)"
 apply (subst lambda.inject, subst alpha)
@@ -1017,23 +1000,6 @@ lemma long_beta_Var:
 using assms
 apply (simp add: long_beta_exist_len, auto simp add: long_beta_len_Var)
 done
-
-(*
-lemma par_beta_lam:
-  assumes "lam[x].t \<Rightarrow>\<beta> s" "x \<sharp> s"
-  obtains t' where "s = lam [x].t'" "t \<Rightarrow>\<beta> t'"
-
-lemma par_beta_app:
-  assumes "App t s \<Rightarrow>\<beta> r"
-  obtains t' s' where "r = App t' s'" "t \<Rightarrow>\<beta> t'" "s \<Rightarrow>\<beta> s'"
-    | x p p' s' where "r = p'[x::=s']" "t = lam[x].p" "p \<Rightarrow>\<beta> p'" "s \<Rightarrow>\<beta> s'" "x \<sharp> (s,s')"
-
-lemma par_beta_redex:
-  assumes "App (lam [x].t) s \<Rightarrow>\<beta> r" "x \<sharp> (s,r)"
-  obtains t' s' where "r = App (lam [x].t') s'" "t \<Rightarrow>\<beta> t'" "s \<Rightarrow>\<beta> s'"
-    | t' s' where "r = t'[x::=s']" "t \<Rightarrow>\<beta> t'" "s \<Rightarrow>\<beta> s'"
-
-*)
 
 subsubsection {* Church-Rosser *}
 
@@ -1206,5 +1172,20 @@ proof-
   then have "\<exists>t3. t1 \<Rightarrow>\<beta>* t3 \<and> t2 \<Rightarrow>\<beta>* t3" by (rule CR_bp)
   then show "\<exists>s. t1 \<longrightarrow>\<beta>* s \<and> t2 \<longrightarrow>\<beta>* s" using par_beta_long_iff_beta_long by auto
 qed
+
+(*
+subsubsection {* Normalization *}
+
+inductive beta_leftmost :: "lambda \<Rightarrow> lambda \<Rightarrow> bool" (infixl "\<rightarrow>l" 50) where
+  bl_abs: "M \<rightarrow>l N \<Longrightarrow> lam [x]. M \<rightarrow>l lam [x]. N"
+| bl_app1: "\<lbrakk> \<not> (\<exists> y M'. M = lam [y]. M'); M \<rightarrow>l N \<rbrakk> \<Longrightarrow> App M L \<rightarrow>l App N L"
+| bl_app2: "\<lbrakk> \<not> (\<exists> y M'. M = lam [y]. M'); L \<rightarrow>l N \<rbrakk> \<Longrightarrow> App M L \<rightarrow>l App M N"
+| bl_beta': "x \<sharp> N \<Longrightarrow> App (lam [x]. M) N \<rightarrow>l M[x::=N]"
+
+equivariance beta_leftmost
+
+nominal_inductive beta_leftmost
+by (simp_all add: abs_fresh fresh_fact)
+*)
 
 end
