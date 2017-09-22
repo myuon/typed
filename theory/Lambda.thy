@@ -4,7 +4,7 @@ begin
 
 atom_decl name
 
-section {* lambda term with de Bruijn index *}
+section {* lambda term *}
 
 subsection {* syntax *}
 
