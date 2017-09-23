@@ -4,6 +4,7 @@ module Typed.Exception
   , Term (ExceptionTerm)
   ) where
 
+import Control.Monad
 import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Tree as T
@@ -11,12 +12,14 @@ import Preliminaries
 import Typed.Simply as M (pattern Ttrue, pattern Tfalse, pattern Tif, pattern Kbool, pattern Tval, pattern Tvar, pattern Tabs, pattern Tapp, pattern Karr, Term (SimplyTerm))
 
 pattern Terroras t = T.Node "error as {}" [t]
+pattern Ttry t1 t2 = T.Node "try {} with {}" [t1,t2]
 
 data TypeOfError
   = ArmsOfConditionalHasDifferentTypes
   | GuardOfConditionalNotABoolean
   | ParameterTypeMismatch
   | ArrowTypeExpected
+  | ExpectedType StrTree StrTree
   deriving Show
 
 instance Exception TypeOfError
@@ -50,6 +53,8 @@ instance Calculus "exception" StrTree StrTree (M.Map Var StrTree) where
           if tyTyp == txTyp1 then return txTyp2
           else throwM ParameterTypeMismatch
         _ -> throwM ArrowTypeExpected
+    go ctx (Ttry t1 t2) = join $ liftM2 (expect ExpectedType) (go ctx t1) (go ctx t2)
+
 
   eval1 (ExceptionTerm t) = fmap ExceptionTerm $ go t where
     go (Tapp (Terroras typ) t) = return $ Terroras typ
@@ -67,6 +72,9 @@ instance Calculus "exception" StrTree StrTree (M.Map Var StrTree) where
       | otherwise = do
         tx' <- go tx
         return $ Tapp tx' ty
+    go (Ttry v1 t2) | isValue (ExceptionTerm v1) = return v1
+    go (Ttry (Terroras _) t2) = return t2
+    go (Ttry t1 t2) = Ttry <$> go t1 <*> return t2
     go _ = throwM NoRuleApplies
 
     subst v p = go where
@@ -80,4 +88,6 @@ instance Calculus "exception" StrTree StrTree (M.Map Var StrTree) where
         | v == y = Tabs y yt t
         | otherwise = Tabs y yt (go t)
       go (Tapp t1 t2) = Tapp (go t1) (go t2)
+      go (Terroras typ) = Terroras typ
+      go (Ttry t1 t2) = Ttry (go t1) (go t2)
 
