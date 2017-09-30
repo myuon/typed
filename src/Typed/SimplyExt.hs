@@ -7,6 +7,7 @@ module Typed.SimplyExt
   , pattern Tpair, pattern Tpr1, pattern Tpr2, pattern Kpair
   , pattern Ttuple, pattern Tproj, pattern Ktuple
   , pattern Tfield, pattern Trecord, pattern Kfield, pattern Krecord, pattern Tprojf
+  , lookupKRec, lookupTRec
   , pattern Tinlas, pattern Tinras, pattern Tcase, pattern Ksum
   , pattern Ttagged, pattern Tmatch, pattern Tcasev, pattern Ktagged, pattern Kvariant
   , pattern Tfix, pattern Tletrec
@@ -29,7 +30,7 @@ pattern Kbase = T.Node "A" []
 
 pattern Kunit = T.Node "Unit" []
 pattern Tunit = T.Node "unit" []
-pattern (:.) tx ty <- (Tabs "*" Kunit ty) `Tapp` tx
+pattern (:.) tx ty <- Tabs "*" Kunit ty `Tapp` tx
 
 pattern Tas t typ = T.Node "as" [t,typ]
 
@@ -49,6 +50,22 @@ pattern Trecord lts = T.Node "record" lts
 pattern Kfield l t = T.Node "{} : {}" [Tval l,t]
 pattern Krecord lts = T.Node "record type" lts
 pattern Tprojf l t = T.Node "{}.label({})" [t,Tval l]
+
+-- record {l:=t} !! l == t
+lookupTRec :: String -> StrTree -> Maybe StrTree
+lookupTRec l (Trecord lts) = go lts where
+  go [] = Nothing
+  go (Tfield l' t' : lts')
+    | l == l' = Just t'
+    | otherwise = go lts'
+
+-- record {l : t} !! l == t
+lookupKRec :: String -> StrTree -> Maybe StrTree
+lookupKRec l (Krecord lts) = go lts where
+  go [] = Nothing
+  go (Kfield l' t' : lts')
+    | l == l' = Just t'
+    | otherwise = go lts'
 
 pattern Tinlas t typ = T.Node "inl {} as {}" [t,typ]
 pattern Tinras t typ = T.Node "inr {} as {}" [t,typ]
@@ -152,8 +169,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
         else throwM $ ExpectedType typ tt
     go ctx (Tlet x t1 t2) = do
       t1T <- go ctx t1
-      t2T <- go (M.insert x t1T ctx) t2
-      return t2T
+      go (M.insert x t1T ctx) t2
     go ctx (Tpair t1 t2) = Kpair <$> go ctx t1 <*> go ctx t2
     go ctx (Tpr1 t) = do
       tT <- go ctx t
@@ -166,12 +182,12 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
         Kpair tT1 tT2 -> return tT2
         z -> throwM $ ExpectedType (Kpair (T.Node "_" []) (T.Node "_" [])) z
     go ctx (Ttuple ts) = do
-      tsTs <- mapM (\t -> go ctx t) ts
+      tsTs <- mapM (go ctx) ts
       return $ Ktuple tsTs
     go ctx (Tproj i t) = do
       tT <- go ctx t
       case tT of
-        Ktuple tTs -> return $ tTs !! (read i)
+        Ktuple tTs -> return $ tTs !! read i
         z -> throwM $ ExpectedType (Ktuple []) z
     go ctx (Trecord lts) = do
       tsT <- mapM (\(Tfield l t) -> Kfield l <$> go ctx t) lts
@@ -181,13 +197,13 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
       case tT of
         Krecord tTs -> return $ (\(Kfield u t) -> t) $ head $ filter (\(Kfield u t) -> l == u) tTs
         z -> throwM $ ExpectedType (Krecord [Kfield l (Tval "_")]) z
-    go ctx (Tinlas t typ) = do
+    go ctx (Tinlas t typ) =
       case typ of
         Ksum typT1 typT2 -> do
           tT <- go ctx t
           if tT == typT1 then return typ else throwM $ ExpectedType typT1 tT
         _ -> throwM $ ExpectedType (Ksum (Tval "_") (Tval "_")) typ
-    go ctx (Tinras t typ) = do
+    go ctx (Tinras t typ) =
       case typ of
         Ksum typT1 typT2 -> do
           tT <- go ctx t
@@ -196,7 +212,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
     go ctx (Ttagged l t typ) = do
       tT <- go ctx t
       case typ of
-        Kvariant xs | (l,tT) `elem` fmap (\(Ktagged l t) -> (l,t)) xs -> return $ typ
+        Kvariant xs | (l,tT) `elem` fmap (\(Ktagged l t) -> (l,t)) xs -> return typ
         z -> throwM $ ExpectedType typ (Kvariant [Ktagged l tT])
     go ctx (Tcasev t lxt) = do
       tT <- go ctx t
@@ -236,7 +252,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
     go ctx (Thead typ t) = do
       tT <- go ctx t
       case tT of
-        Klist tT' | tT' == typ -> return $ typ
+        Klist tT' | tT' == typ -> return typ
         z -> throwM $ ExpectedType (Klist typ) z
     go ctx (Ttail typ t) = do
       tT <- go ctx t
@@ -283,12 +299,12 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
         return $ Tlet x v t
     go (Tpr1 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
     go (Tpr2 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
-    go (Tpr1 t) = Tpr1 <$> (go t)
-    go (Tpr2 t) = Tpr2 <$> (go t)
+    go (Tpr1 t) = Tpr1 <$> go t
+    go (Tpr2 t) = Tpr2 <$> go t
     go (Tpair t1 t2)
       | isValue (SimplyExtTerm t1) = Tpair t1 <$> go t2
-      | otherwise = Tpair <$> (go t1) <*> return t2
-    go (Tproj i (Ttuple vs)) | all (isValue . SimplyExtTerm) vs = return $ vs !! (read i)
+      | otherwise = Tpair <$> go t1 <*> return t2
+    go (Tproj i (Ttuple vs)) | all (isValue . SimplyExtTerm) vs = return $ vs !! read i
     go (Tproj i t) = Tproj i <$> go t
     go (Ttuple vs) = do
       let (a,b:bs) = span (isValue . SimplyExtTerm) vs

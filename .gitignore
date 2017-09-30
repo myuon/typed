@@ -4,3 +4,4 @@
 .idea/
 out/
 typed.iml
+cabal.config
