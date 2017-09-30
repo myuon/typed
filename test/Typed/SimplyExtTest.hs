@@ -23,6 +23,9 @@ test_typeof =
   , testCase "|- {x=0, isHoge=true} : {x:nat, isHoge:bool}" $ rights [typeof M.empty (SimplyExtTerm $ Trecord [Tfield "x" Tzero, Tfield "isHoge" Ttrue])] @?= [Krecord [Kfield "x" Knat, Kfield "isHoge" Kbool]]
   , testCase "|- ff : (nat -> bool) -> nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tff)] @?= [(Knat `Karr` Kbool) `Karr` (Knat `Karr` Kbool)]
   , testCase "|- iseven : nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tiseven)] @?= [Knat `Karr` Kbool]
+  , testCase "|- λx:{hoge: nat, piyo: bool}. x.hoge : {hoge: nat, piyo: bool} -> nat"
+  $ rights [typeof M.empty (SimplyExtTerm $ Tabs "x" (Krecord [Kfield "hoge" Knat, Kfield "piyo" Kbool]) (Tprojf "hoge" (Tvar "x")))]
+  @?= [Krecord [Kfield "hoge" Knat, Kfield "piyo" Kbool] `Karr` Knat]
   ]
 
 test_eval =

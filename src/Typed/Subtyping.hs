@@ -1,11 +1,8 @@
 module Typed.Subtyping
   ( module Typed.Simply
-  , pattern Karr
-  , pattern Tval
-  , pattern Tvar
-  , pattern Tabs
-  , pattern Tapp
-  , Term(SimplyTerm)
+  , module Typed.SimplyExt
+  , Term(SubtypeTerm)
+  , pattern Ktop
   ) where
 
 import Control.Monad.Catch
@@ -22,7 +19,7 @@ data TypeOfError
   | GuardOfConditionalNotABoolean
   | ExpectedANat
   | WrongKindOfBindingForVariable
-  | ParameterTypeMismatch
+  | ParameterTypeMismatch StrTree StrTree
   | ArrowTypeExpected
   | ExpectedType StrTree StrTree
   | NotFoundLabel String [StrTree]
@@ -33,9 +30,9 @@ instance Exception TypeOfError
 subtype :: StrTree -> StrTree -> Bool
 subtype = go where
   go tyS tyT | tyS == tyT = True
-  go (Trecord fS) (Trecord fT) = all (\(Tfield li tyTi) -> maybe False (\tySi -> go tySi tyTi) (lookupTRec li (Trecord fS))) fT
+  go (Krecord fS) (Krecord fT) = all (\(Kfield li tyTi) -> maybe False (\tySi -> go tySi tyTi) (lookupKRec li (Krecord fS))) fT
   go _ Ktop = True
-  go (Karr tyS1 tyS2) (Karr tyT1 tyT2) = go tyS1 tyT1 && go tyS2 tyT2
+  go (Karr tyS1 tyS2) (Karr tyT1 tyT2) = go tyT1 tyS1 && go tyS2 tyT2
   go _ _ = False
 
 instance Calculus "subtyping" StrTree StrTree (M.Map Var StrTree) where
@@ -61,7 +58,7 @@ instance Calculus "subtyping" StrTree StrTree (M.Map Var StrTree) where
       case txTyp of
         Karr txTyp1 txTyp2 ->
           if subtype tyTyp txTyp1 then return txTyp2
-          else throwM ParameterTypeMismatch
+          else throwM $ ParameterTypeMismatch tyTyp txTyp1
         _ -> throwM ArrowTypeExpected
 
   eval1 (SubtypeTerm t) = (\(SimplyExtTerm t) -> SubtypeTerm t) <$> eval1 (SimplyExtTerm t)
