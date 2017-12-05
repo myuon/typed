@@ -9,13 +9,14 @@ subsection {* Typing rules *}
 nominal_datatype simply = TVar string | TArr simply simply (infixr "\<rightarrow>" 90)
 
 inductive valid :: "(name \<times> simply) list \<Rightarrow> bool" where
-  [intro]: "valid []"
-| [intro]: "\<lbrakk> valid \<Gamma>; x \<sharp> \<Gamma> \<rbrakk> \<Longrightarrow> valid ((x,T)#\<Gamma>)"
+  valid_nil: "valid []"
+| valid_cons: "\<lbrakk> valid \<Gamma>; x \<sharp> \<Gamma> \<rbrakk> \<Longrightarrow> valid ((x,T)#\<Gamma>)"
 
 equivariance valid
 
-lemma valid_cons: "valid ((x,T)#\<Gamma>) \<Longrightarrow> valid \<Gamma> \<and> x \<sharp> \<Gamma>"
+lemma elim_valid_cons: "valid ((x,T)#\<Gamma>) \<Longrightarrow> valid \<Gamma> \<and> x \<sharp> \<Gamma>"
 by (cases rule: valid.cases, auto)
+
 lemma fresh_notin:
   fixes x :: name and \<Gamma> :: "(name \<times> simply) list"
   assumes "x \<sharp> \<Gamma>"
@@ -24,6 +25,7 @@ using assms
 apply (induction \<Gamma> arbitrary: x, simp, simp add: fresh_list_cons)
 apply (rule, auto simp add: fresh_prod fresh_atm)
 done
+
 lemma valid_ctx_unique:
   assumes "valid \<Gamma>" "(x,\<sigma>) \<in> set \<Gamma>" "(x,\<tau>) \<in> set \<Gamma>"
   shows "\<sigma> = \<tau>"
@@ -62,6 +64,27 @@ using st_app apply blast
 apply (rule, simp, simp)
 by (simp add: subset_insertI2 valid.intros(2))
 
+lemma typed_valid: "\<Gamma> \<turnstile> M : A \<Longrightarrow> valid \<Gamma>"
+apply (nominal_induct rule: typed.strong_induct, auto)
+using elim_valid_cons by blast
+
+lemma ctx_swap_head_typed: "(x,t) # (y,s) # \<Gamma> \<turnstile> M : A \<Longrightarrow> (y,s) # (x,t) # \<Gamma> \<turnstile> M : A"
+proof (rule weak_ctx [of "(x,t) # (y,s) # \<Gamma>"], auto)
+  assume "(x, t) # (y, s) # \<Gamma> \<turnstile> M : A"
+  hence "valid ((x,t) # (y, s) # \<Gamma>)" by (simp add: typed_valid)
+  hence "valid ((y,s) # \<Gamma>) \<and> x \<sharp> (y,\<Gamma>)"
+    using elim_valid_cons
+    by (meson fresh_list_cons fresh_prod)
+  hence fresh: "valid \<Gamma>" "y \<sharp> \<Gamma>" "x \<noteq> y" "x \<sharp> \<Gamma>"
+    using elim_valid_cons apply blast
+    using \<open>valid ((y, s) # \<Gamma>) \<and> x \<sharp> (y, \<Gamma>)\<close> elim_valid_cons apply blast
+    apply (metis \<open>valid ((x, t) # (y, s) # \<Gamma>)\<close> elim_valid_cons fresh_notin list.set_intros(1))
+    by (simp add: \<open>valid ((y, s) # \<Gamma>) \<and> x \<sharp> (y, \<Gamma>)\<close>)
+  show "valid ((y, s) # (x, t) # \<Gamma>)"
+    apply (rule, rule, rule fresh, rule fresh)
+    by (metis fresh(2) fresh(3) fresh_atm fresh_list_cons fresh_prod fresh_type)
+qed    
+
 subsubsection {* coherence *}
 
 lemma par_ignore_prm:
@@ -94,8 +117,10 @@ apply (nominal_induct rule: typed.strong_induct)
 
 lemma gen_typed_var: "\<Gamma> \<turnstile> Var x : \<sigma> \<Longrightarrow> (x,\<sigma>) \<in> set \<Gamma>"
 by (cases rule:typed.cases, auto simp add: lambda.inject)
+
 lemma gen_typed_app_exist: "\<Gamma> \<turnstile> App M N : \<tau> \<Longrightarrow> \<exists>\<sigma>. (\<Gamma> \<turnstile> M : (\<sigma> \<rightarrow> \<tau>)) \<and> (\<Gamma> \<turnstile> N : \<sigma>)"
 by (cases rule:typed.cases, auto simp add: lambda.inject)
+
 lemma gen_typed_abs_exist: "\<lbrakk> \<Gamma> \<turnstile> lam [x]. M : \<rho>; x \<sharp> \<Gamma> \<rbrakk> \<Longrightarrow> \<exists>\<sigma> \<tau>. ((x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>) \<and> (\<rho> = \<sigma> \<rightarrow> \<tau>)"
 proof (cases rule:typed.cases, auto)
   fix xa \<sigma> Ma \<tau>
@@ -122,12 +147,10 @@ subsubsection {* Soundness *}
 
 lemma typed_var_unique: "(x,\<sigma>)#\<Gamma> \<turnstile> Var x : \<tau> \<Longrightarrow> \<sigma> = \<tau>"
 apply (cases rule: typed.strong_cases, auto simp add: lambda.inject)
-using valid_cons apply (rule, simp)
+using elim_valid_cons apply (rule, simp)
   using fresh_notin apply auto
 apply (generate_fresh name)
 by (meson gen_typed_valid gen_typed_var list.set_intros(1) valid_ctx_unique)
-
-(*
 
 lemma subst_typed: "\<lbrakk> (x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>; \<Gamma> \<turnstile> N : \<sigma> \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> M[x::=N] : \<tau>"
 apply (nominal_induct M avoiding: x N \<sigma> \<Gamma> arbitrary: \<tau> rule: lambda.strong_induct)
@@ -142,12 +165,71 @@ proof-
   assume name_fresh: "name \<sharp> x" "name \<sharp> N" "name \<sharp> \<sigma>" "name \<sharp> \<Gamma>"
   and IH: "\<And>b ba bb bc \<tau>. (b, bb) # bc \<turnstile> lambda : \<tau> \<Longrightarrow> bc \<turnstile> ba : bb \<Longrightarrow> bc \<turnstile> lambda[b::=ba] : \<tau>"
   and hyp: "(x, \<sigma>) # \<Gamma> \<turnstile> lam [name].lambda : \<tau>" "\<Gamma> \<turnstile> N : \<sigma>"
-  have "\<exists>t1 t2. \<tau> = t1 \<rightarrow> t2"
-    using gen_typed_abs_exist [OF hyp(1)] name_fresh conjunct2
-    
   
-  obtain t1 t2 where "\<tau> = t1 \<rightarrow> t2"
-  show "\<Gamma> \<turnstile> lam [name].lambda[x::=N] : \<tau>"
-*)
+  obtain \<tau>1 \<tau>2 where tau: "\<tau> = \<tau>1 \<rightarrow> \<tau>2" "(name, \<tau>1) # (x, \<sigma>) # \<Gamma> \<turnstile> lambda : \<tau>2"
+    by (metis fresh_list_cons fresh_prod fresh_type gen_typed_abs_exist hyp(1) name_fresh(1) name_fresh(4))
+  have "(name,\<tau>1) # \<Gamma> \<turnstile> lambda[x::=N] : \<tau>2"
+    apply (rule IH)
+    apply (rule ctx_swap_head_typed)
+    apply (rule tau)
+    apply (rule weak_ctx [of \<Gamma>], auto)
+    apply (rule, rule typed_valid, rule hyp, rule name_fresh, rule hyp)
+    done
+  thus "\<Gamma> \<turnstile> lam [name].lambda[x::=N] : \<tau>"
+    apply (simp add: tau(1))
+    by (simp add: name_fresh(4) st_abs)
+qed
+
+lemma preservation_one:
+  assumes "M \<rightarrow>\<beta> M'"
+  shows "\<Gamma> \<turnstile> M : \<sigma> \<Longrightarrow> \<Gamma> \<turnstile> M' : \<sigma>"
+apply (nominal_induct avoiding: \<Gamma> arbitrary: \<sigma> rule: beta.strong_induct [OF assms])
+apply (erule gen_typed_app, rule)
+prefer 2 apply (simp, simp)
+apply (erule gen_typed_app, rule)
+apply (simp, simp)
+apply (erule gen_typed_abs, simp, simp, rule, simp, simp)
+apply (erule gen_typed_app, erule gen_typed_abs, simp)
+apply (rule subst_typed, simp add: simply.inject, simp add: simply.inject)
+done
+
+lemma preservation:
+  assumes "M \<longrightarrow>\<beta>* M'"
+  shows "\<Gamma> \<turnstile> M : \<sigma> \<Longrightarrow> \<Gamma> \<turnstile> M' : \<sigma>"
+by (induct rule: long_beta.induct [OF assms], auto simp add: preservation_one)
+
+nominal_primrec Value :: "lambda \<Rightarrow> bool" where
+  "Value (lam [_]._) = True"
+  | "Value (Var _) = False"
+  | "Value (App _ _) = False"
+by (finite_guess+, rule+, fresh_guess+)
+
+lemma Value_eqvt[eqvt]:
+  fixes \<pi> :: "name prm" and M :: lambda
+  shows "\<pi> \<bullet> Value M = Value (\<pi> \<bullet> M)"
+by (nominal_induct M rule: lambda.strong_induct, auto)
+
+lemma Value_abs:
+  assumes "Value M"
+  obtains x M' where "M = lam [x]. M'"
+using assms by (nominal_induct M rule: lambda.strong_induct, auto)
+  
+lemma progress: "[] \<turnstile> M : \<sigma> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
+proof-
+  have "\<And>\<Gamma> thesis. \<lbrakk> \<Gamma> \<turnstile> M : \<sigma>; \<Gamma> = [] \<rbrakk> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
+    proof-
+      fix \<Gamma> thesis
+      show "\<lbrakk> \<Gamma> \<turnstile> M : \<sigma>; \<Gamma> = [] \<rbrakk> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
+        apply (nominal_induct rule: typed.strong_induct, auto)
+        apply (erule Value_abs, simp, rule, rule b_beta)
+        done
+    qed
+  thus "[] \<turnstile> M : \<sigma> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')" by simp
+qed
+
+theorem soundness:
+  assumes "[] \<turnstile> M : \<sigma>" "M \<longrightarrow>\<beta>* M'"
+  shows "Value M' \<or> (\<exists> M''. M' \<rightarrow>\<beta> M'')"
+by (rule progress, rule preservation, rule assms, rule assms)
 
 end

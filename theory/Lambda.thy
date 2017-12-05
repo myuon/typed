@@ -1,5 +1,5 @@
 theory Lambda
-imports Nominal
+imports "~~/src/HOL/Nominal/Nominal"
 begin
 
 atom_decl name
