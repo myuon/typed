@@ -1,5 +1,5 @@
 theory Simply
-imports Lambda
+imports CR
 begin
 
 section {* Simply typed *}
@@ -8,7 +8,7 @@ subsection {* Typing rules *}
 
 nominal_datatype simply = TVar string | TArr simply simply (infixr "\<rightarrow>" 90)
 
-inductive valid :: "(name \<times> simply) list \<Rightarrow> bool" where
+inductive valid :: "(var \<times> simply) list \<Rightarrow> bool" where
   valid_nil: "valid []"
 | valid_cons: "\<lbrakk> valid \<Gamma>; x \<sharp> \<Gamma> \<rbrakk> \<Longrightarrow> valid ((x,T)#\<Gamma>)"
 
@@ -18,7 +18,7 @@ lemma elim_valid_cons: "valid ((x,T)#\<Gamma>) \<Longrightarrow> valid \<Gamma> 
 by (cases rule: valid.cases, auto)
 
 lemma fresh_notin:
-  fixes x :: name and \<Gamma> :: "(name \<times> simply) list"
+  fixes x :: var and \<Gamma> :: "(var \<times> simply) list"
   assumes "x \<sharp> \<Gamma>"
   shows "(x,y) \<notin> set \<Gamma>"
 using assms
@@ -42,7 +42,7 @@ inductive typed ("_ \<turnstile> _ : _" 40) where
 equivariance typed
 
 lemma fresh_type:
-  fixes x :: name
+  fixes x :: var
   and T :: simply
   shows "x \<sharp> T"
 by (nominal_induct T rule:simply.strong_induct, simp_all add: fresh_string)
@@ -87,29 +87,6 @@ qed
 
 subsubsection {* coherence *}
 
-lemma par_ignore_prm:
-  fixes \<pi> :: "name prm" and T :: simply
-  shows "\<pi> \<bullet> T = T"
-apply (nominal_induct T rule:simply.strong_induct, auto)
-by (simp add: perm_string)
-
-lemma typed_rename: "\<lbrakk> x \<sharp> \<Gamma>; y \<sharp> \<Gamma>; (x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>; lam [x].M = lam [y].M' \<rbrakk> \<Longrightarrow> (y,\<sigma>)#\<Gamma> \<turnstile> M' : \<tau>"
-proof (simp add: lambda.inject)
-  assume assms: "x \<sharp> \<Gamma>" "y \<sharp> \<Gamma>" "(x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>" "[x].M = [y].M'"
-  have p: "[(x,y)] \<bullet> M = M'"
-    by (smt abs_fresh(1) abs_perm alpha' assms(4) perm_fresh_fresh perm_swap(1))
-  
-  have "(x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>" by (rule assms) 
-  then have "([(x,y)] \<bullet> ((x,\<sigma>)#\<Gamma>)) \<turnstile> ([(x,y)] \<bullet> M) : ([(x,y)] \<bullet> \<tau>)"
-    by (rule eqvt)
-  then have "((y,\<sigma>)# ([(x,y)] \<bullet> \<Gamma>)) \<turnstile> ([(x,y)] \<bullet> M) : \<tau>"
-    by (simp add: par_ignore_prm swap_simps(1))
-  then show "(y,\<sigma>)#\<Gamma> \<turnstile> M' : \<tau>"
-    apply (subst p [symmetric])
-    using assms(1) assms(2)
-    by (simp add: perm_fresh_fresh)
-qed
-
 lemma gen_typed_valid: "\<Gamma> \<turnstile> M : \<sigma> \<Longrightarrow> valid \<Gamma>"
 apply (nominal_induct rule: typed.strong_induct)
   apply (auto)
@@ -118,30 +95,17 @@ apply (nominal_induct rule: typed.strong_induct)
 lemma gen_typed_var: "\<Gamma> \<turnstile> Var x : \<sigma> \<Longrightarrow> (x,\<sigma>) \<in> set \<Gamma>"
 by (cases rule:typed.cases, auto simp add: lambda.inject)
 
-lemma gen_typed_app_exist: "\<Gamma> \<turnstile> App M N : \<tau> \<Longrightarrow> \<exists>\<sigma>. (\<Gamma> \<turnstile> M : (\<sigma> \<rightarrow> \<tau>)) \<and> (\<Gamma> \<turnstile> N : \<sigma>)"
-by (cases rule:typed.cases, auto simp add: lambda.inject)
-
-lemma gen_typed_abs_exist: "\<lbrakk> \<Gamma> \<turnstile> lam [x]. M : \<rho>; x \<sharp> \<Gamma> \<rbrakk> \<Longrightarrow> \<exists>\<sigma> \<tau>. ((x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>) \<and> (\<rho> = \<sigma> \<rightarrow> \<tau>)"
-proof (cases rule:typed.cases, auto)
-  fix xa \<sigma> Ma \<tau>
-  assume assms: "\<Gamma> \<turnstile> lam [xa].Ma : \<sigma> \<rightarrow> \<tau>" "x \<sharp> \<Gamma>" "lam [x].M = lam [xa].Ma" "xa \<sharp> \<Gamma>" "(xa, \<sigma>)#\<Gamma> \<turnstile> Ma : \<tau>" "\<rho> = \<sigma> \<rightarrow> \<tau>"
-  obtain y :: name where y: "y \<sharp> M"
-    by (rule exists_fresh, rule fin_supp, auto)
-  have "(x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>"
-    by (rule typed_rename, rule assms(4), rule assms, rule assms, rule assms(3) [symmetric])
-  then show "\<exists>\<sigma>' \<tau>'. ((x, \<sigma>') # \<Gamma> \<turnstile> M : \<tau>') \<and> (\<sigma> \<rightarrow> \<tau> = \<sigma>' \<rightarrow> \<tau>')"
-    by auto
-qed    
-
 lemma gen_typed_app:
   assumes "\<Gamma> \<turnstile> M $ N : \<tau>"
   obtains \<sigma> where "\<Gamma> \<turnstile> M : (\<sigma> \<rightarrow> \<tau>)" "\<Gamma> \<turnstile> N : \<sigma>"
-using gen_typed_app_exist [OF assms] by auto 
+by (cases rule:typed.cases [OF assms], auto simp add: lambda.inject)
 
 lemma gen_typed_abs:
   assumes "\<Gamma> \<turnstile> lam [x]. M : \<rho>" "x \<sharp> \<Gamma>"
   obtains \<sigma> \<tau> where "(x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>" "\<rho> = \<sigma> \<rightarrow> \<tau>"
-using gen_typed_abs_exist [OF assms] by auto
+using assms
+apply (cases rule: typed.strong_cases [of _ _ _ _ x], auto)
+by (metis abs_fresh(1) abs_fun_eq1 fresh_type lambda.inject(3))
 
 subsubsection {* Soundness *}
 
@@ -149,7 +113,7 @@ lemma typed_var_unique: "(x,\<sigma>)#\<Gamma> \<turnstile> Var x : \<tau> \<Lon
 apply (cases rule: typed.strong_cases, auto simp add: lambda.inject)
 using elim_valid_cons apply (rule, simp)
   using fresh_notin apply auto
-apply (generate_fresh name)
+apply (generate_fresh var)
 by (meson gen_typed_valid gen_typed_var list.set_intros(1) valid_ctx_unique)
 
 lemma subst_typed: "\<lbrakk> (x,\<sigma>)#\<Gamma> \<turnstile> M : \<tau>; \<Gamma> \<turnstile> N : \<sigma> \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> M[x::=N] : \<tau>"
@@ -158,8 +122,8 @@ apply (nominal_induct M avoiding: x N \<sigma> \<Gamma> arbitrary: \<tau> rule: 
   using typed_var_unique apply fastforce
   using gen_typed_var [of "(x,\<sigma>)#\<Gamma>" _ \<sigma>] apply simp
   apply (meson Pair_inject gen_typed_valid gen_typed_var set_ConsD st_var)
-    using gen_typed_app_exist
-    apply (meson st_app)
+    apply (rule gen_typed_app, simp)
+    apply (rule, blast, blast)
 proof-
   fix name lambda x N \<sigma> \<Gamma> \<tau>
   assume name_fresh: "name \<sharp> x" "name \<sharp> N" "name \<sharp> \<sigma>" "name \<sharp> \<Gamma>"
@@ -167,7 +131,7 @@ proof-
   and hyp: "(x, \<sigma>) # \<Gamma> \<turnstile> lam [name].lambda : \<tau>" "\<Gamma> \<turnstile> N : \<sigma>"
   
   obtain \<tau>1 \<tau>2 where tau: "\<tau> = \<tau>1 \<rightarrow> \<tau>2" "(name, \<tau>1) # (x, \<sigma>) # \<Gamma> \<turnstile> lambda : \<tau>2"
-    by (metis fresh_list_cons fresh_prod fresh_type gen_typed_abs_exist hyp(1) name_fresh(1) name_fresh(4))
+    by (metis fresh_list_cons fresh_prod fresh_type gen_typed_abs hyp(1) name_fresh(1) name_fresh(4))
   have "(name,\<tau>1) # \<Gamma> \<turnstile> lambda[x::=N] : \<tau>2"
     apply (rule IH)
     apply (rule ctx_swap_head_typed)
@@ -175,7 +139,7 @@ proof-
     apply (rule weak_ctx [of \<Gamma>], auto)
     apply (rule, rule typed_valid, rule hyp, rule name_fresh, rule hyp)
     done
-  thus "\<Gamma> \<turnstile> lam [name].lambda[x::=N] : \<tau>"
+  thus "\<Gamma> \<turnstile> lam [name]. (lambda[x::=N]) : \<tau>"
     apply (simp add: tau(1))
     by (simp add: name_fresh(4) st_abs)
 qed
@@ -205,7 +169,7 @@ nominal_primrec Value :: "lambda \<Rightarrow> bool" where
 by (finite_guess+, rule+, fresh_guess+)
 
 lemma Value_eqvt[eqvt]:
-  fixes \<pi> :: "name prm" and M :: lambda
+  fixes \<pi> :: "var prm" and M :: lambda
   shows "\<pi> \<bullet> Value M = Value (\<pi> \<bullet> M)"
 by (nominal_induct M rule: lambda.strong_induct, auto)
 
@@ -216,9 +180,9 @@ using assms by (nominal_induct M rule: lambda.strong_induct, auto)
   
 lemma progress: "[] \<turnstile> M : \<sigma> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
 proof-
-  have "\<And>\<Gamma> thesis. \<lbrakk> \<Gamma> \<turnstile> M : \<sigma>; \<Gamma> = [] \<rbrakk> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
+  have "\<And>\<Gamma>. \<lbrakk> \<Gamma> \<turnstile> M : \<sigma>; \<Gamma> = [] \<rbrakk> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
     proof-
-      fix \<Gamma> thesis
+      fix \<Gamma>
       show "\<lbrakk> \<Gamma> \<turnstile> M : \<sigma>; \<Gamma> = [] \<rbrakk> \<Longrightarrow> Value M \<or> (\<exists>M'. M \<rightarrow>\<beta> M')"
         apply (nominal_induct rule: typed.strong_induct, auto)
         apply (erule Value_abs, simp, rule, rule b_beta)
@@ -232,4 +196,107 @@ theorem soundness:
   shows "Value M' \<or> (\<exists> M''. M' \<rightarrow>\<beta> M'')"
 by (rule progress, rule preservation, rule assms, rule assms)
 
+inductive SN where
+  SN: "(\<And>M'. M \<rightarrow>\<beta> M' \<Longrightarrow> SN M') \<Longrightarrow> SN M"
+
+nominal_primrec RED where
+  "RED (TVar x) = {t. SN t}"
+| "RED (A \<rightarrow> B) = {t. \<forall>u. u \<in> RED A \<longrightarrow> t $ u \<in> RED B}"
+by (rule+)
+
+lemma RED_forward:
+  assumes "M \<rightarrow>\<beta> M'"
+  shows "M \<in> RED A \<Longrightarrow> M' \<in> RED A"
+using assms apply (nominal_induct A arbitrary: M M' rule: simply.strong_induct, auto)
+apply (cases rule: SN.cases, simp, simp)
+apply blast
+done
+
+lemma SN_elim_app1_var: "SN (M $ Var x) \<Longrightarrow> SN M"
+proof-
+  { fix N
+    have "\<lbrakk> SN N; N = (M $ Var x) \<rbrakk> \<Longrightarrow> SN M"
+      apply (induct arbitrary: M rule: SN.induct, auto, rule)
+      apply (cases rule: beta.cases, auto)
+      done
+  }
+  thus "SN (M $ Var x) \<Longrightarrow> SN M" by simp
+qed
+
+lemma SN_var: "SN (Var x)"
+by (rule, cases rule: beta.cases, auto)
+
+lemma elim_app_beta:
+  assumes "M $ N \<rightarrow>\<beta> L" and "nonabs M"
+  shows "(\<And>M'. M \<rightarrow>\<beta> M' \<Longrightarrow> L = M' $ N \<Longrightarrow> thesis) \<Longrightarrow> (\<And>N'. N \<rightarrow>\<beta> N' \<Longrightarrow> L = M $ N' \<Longrightarrow> thesis) \<Longrightarrow> thesis"
+apply (cases rule: beta.cases [OF assms(1)], auto simp add: lambda.inject)
+using assms(2) apply simp
+done
+
+lemma RED_sn_and_neutral_backward:
+  "M \<in> RED A \<Longrightarrow> SN M" and "\<lbrakk> nonabs M; (\<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED A) \<rbrakk> \<Longrightarrow> M \<in> RED A"
+apply (nominal_induct A arbitrary: M rule: simply.strong_induct, auto)
+  apply (rule, simp)
+proof-
+  fix t1 t2 M
+  assume "(\<And>M. M \<in> RED t1 \<Longrightarrow> SN M)" and hyp: "(\<And>M. nonabs M \<Longrightarrow> \<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED t1 \<Longrightarrow> M \<in> RED t1)"
+  and hyp3: "(\<And>M. M \<in> RED t2 \<Longrightarrow> SN M)" and "(\<And>M. nonabs M \<Longrightarrow> \<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED t2 \<Longrightarrow> M \<in> RED t2)"
+  and hyp2: "\<forall>u. u \<in> RED t1 \<longrightarrow> M $ u \<in> RED t2"
+  
+  fix x
+  have "Var x \<in> RED t1"
+    apply (rule hyp, auto)
+    apply (cases rule: beta.cases, auto)
+    done
+  hence "M $ Var x \<in> RED t2" by (simp add: hyp2)
+  hence "SN (M $ Var x)" by (rule hyp3)
+  thus "SN M" by (rule SN_elim_app1_var)
+next
+  fix t1 t2 M u
+  assume "(\<And>M. M \<in> RED t1 \<Longrightarrow> SN M)" "(\<And>M. nonabs M \<Longrightarrow> \<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED t1 \<Longrightarrow> M \<in> RED t1)"
+  and "(\<And>M. M \<in> RED t2 \<Longrightarrow> SN M)" "(\<And>M. nonabs M \<Longrightarrow> \<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED t2 \<Longrightarrow> M \<in> RED t2)"
+  and "nonabs M"
+  and hyp: "\<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> (\<forall>u. u \<in> RED t1 \<longrightarrow> M' $ u \<in> RED t2)" "u \<in> RED t1"
+  
+  { fix N
+    have "\<lbrakk> SN N; N \<in> RED t1 \<rbrakk> \<Longrightarrow> M $ N \<in> RED t2"
+      proof (induct rule: SN.induct)
+        fix P
+        assume "\<And>P'. P \<rightarrow>\<beta> P' \<Longrightarrow> SN P'"
+        and "\<And>P'. P \<rightarrow>\<beta> P' \<Longrightarrow> P' \<in> RED t1 \<Longrightarrow> M $ P' \<in> RED t2"
+        and "P \<in> RED t1"
+        
+        have P: "\<And>M'. M $ P \<rightarrow>\<beta> M' \<Longrightarrow> M' \<in> RED t2"
+          apply (erule elim_app_beta, auto)
+          apply fact
+          using `P \<in> RED t1` hyp apply simp
+          by (simp add: RED_forward \<open>P \<in> RED t1\<close> \<open>\<And>P'. \<lbrakk>P \<rightarrow>\<beta> P'; P' \<in> RED t1\<rbrakk> \<Longrightarrow> M $ P' \<in> RED t2\<close>)
+        show "M $ P \<in> RED t2"
+          apply (rule `\<And>M. nonabs M \<Longrightarrow> \<forall>M'. M \<rightarrow>\<beta> M' \<longrightarrow> M' \<in> RED t2 \<Longrightarrow> M \<in> RED t2`)
+          using `nonabs M` apply simp
+          apply (simp add: P)
+          done
+      qed
+  }
+  thus "M $ u \<in> RED t2"
+    using `M \<in> RED t1 \<Longrightarrow> SN M` `u \<in> RED t1`
+    using \<open>\<And>M. M \<in> RED t1 \<Longrightarrow> SN M\<close> by auto
+qed
+
+(*
+lemma SN_abs:
+  assumes "SN M"
+  shows "SN (lam [x]. M)"
+proof rule
+  fix M'
+  assume "lam [x]. M \<rightarrow>\<beta> M'"
+  then obtain M'' where "M \<rightarrow>\<beta> M''" "M' = lam [x]. M''"
+    apply (cases rule: beta.strong_cases [of _ _ _ x x], auto simp add: abs_fresh)
+  show "SN M'"
+
+lemma RED_subst:
+  assumes "N \<in> RED t'" "M [x ::= N] \<in> RED t"
+  shows "(lam [x]. M) $ N \<in> RED t"
+*)
+  
 end
