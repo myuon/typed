@@ -3,7 +3,6 @@ module Typed.SimplyExtTest where
 import Data.Either
 import qualified Data.Map as M
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 import Preliminaries
 import Typed.SimplyExt
 
@@ -24,17 +23,20 @@ test_typeof =
   , testCase "|- {x=0, isHoge=true} : {x:nat, isHoge:bool}" $ rights [typeof M.empty (SimplyExtTerm $ Trecord [Tfield "x" Tzero, Tfield "isHoge" Ttrue])] @?= [Krecord [Kfield "x" Knat, Kfield "isHoge" Kbool]]
   , testCase "|- ff : (nat -> bool) -> nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tff)] @?= [(Knat `Karr` Kbool) `Karr` (Knat `Karr` Kbool)]
   , testCase "|- iseven : nat -> bool" $ rights [typeof M.empty (SimplyExtTerm _Tiseven)] @?= [Knat `Karr` Kbool]
+  , testCase "|- λx:{hoge: nat, piyo: bool}. x.hoge : {hoge: nat, piyo: bool} -> nat"
+  $ rights [typeof M.empty (SimplyExtTerm $ Tabs "x" (Krecord [Kfield "hoge" Knat, Kfield "piyo" Kbool]) (Tprojf "hoge" (Tvar "x")))]
+  @?= [Krecord [Kfield "hoge" Knat, Kfield "piyo" Kbool] `Karr` Knat]
   ]
 
 test_eval =
-  [ testCase "(λf:unit -> unit. f *) (λx:unit. x) -> *" $ rights [eval M.empty (SimplyExtTerm $ Tabs "f" (Tunit `Karr` Tunit) (Tvar "f" `Tapp` Tunit) `Tapp` (Tabs "x" Tunit (Tvar "x")))] @?= [SimplyExtTerm Tunit]
-  , testCase "let x=2 in succ x -> 3" $ rights [eval M.empty (SimplyExtTerm $ Tlet "x" (Tsucc (Tsucc Tzero)) (Tsucc (Tvar "x")))] @?= [SimplyExtTerm (Tsucc (Tsucc (Tsucc Tzero)))]
-  , testCase "{pred 1, if true then false else false}.1 -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tpr1 (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tzero] 
-  , testCase "(λx:(nat,bool). x.2) {pred 1, if true then false else false} -> false" $ rights [eval M.empty (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tfalse]
-  , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval M.empty (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
-  , testCase "case (inr true as nat+bool) of { inl => true; inr => false } -> false" $ rights [eval M.empty (SimplyExtTerm $ Tcase (Tinras Ttrue (Knat `Ksum` Kbool)) (Tabs "x" Knat Ttrue) (Tabs "x" Kbool Tfalse))] @?= [SimplyExtTerm Tfalse]
-  , testCase "|- iseven 3 -> false" $ rights [eval M.empty (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc (Tsucc Tzero)))))] @?= [SimplyExtTerm Tfalse]
-  , testCase "|- iseven 2 -> true" $ rights [eval M.empty (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc Tzero))))] @?= [SimplyExtTerm Ttrue]
+  [ testCase "(λf:unit -> unit. f *) (λx:unit. x) -> *" $ rights [eval (SimplyExtTerm $ Tabs "f" (Tunit `Karr` Tunit) (Tvar "f" `Tapp` Tunit) `Tapp` (Tabs "x" Tunit (Tvar "x")))] @?= [SimplyExtTerm Tunit]
+  , testCase "let x=2 in succ x -> 3" $ rights [eval (SimplyExtTerm $ Tlet "x" (Tsucc (Tsucc Tzero)) (Tsucc (Tvar "x")))] @?= [SimplyExtTerm (Tsucc (Tsucc (Tsucc Tzero)))]
+  , testCase "{pred 1, if true then false else false}.1 -> 0" $ rights [eval (SimplyExtTerm $ Tpr1 (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tzero] 
+  , testCase "(λx:(nat,bool). x.2) {pred 1, if true then false else false} -> false" $ rights [eval (SimplyExtTerm $ (Tabs "x" (Kpair Knat Kbool) (Tpr2 (Tvar "x"))) `Tapp` (Tpair (Tpred (Tsucc Tzero)) (Tif Ttrue Tfalse Tfalse)))] @?= [SimplyExtTerm Tfalse]
+  , testCase "{x=pred 1, isHoge=true}.x -> 0" $ rights [eval (SimplyExtTerm $ Tprojf "x" (Trecord [Tfield "x" (Tpred (Tsucc Tzero)), Tfield "isHoge" Ttrue]))] @?= [SimplyExtTerm $ Tzero]
+  , testCase "case (inr true as nat+bool) of { inl => true; inr => false } -> false" $ rights [eval (SimplyExtTerm $ Tcase (Tinras Ttrue (Knat `Ksum` Kbool)) (Tabs "x" Knat Ttrue) (Tabs "x" Kbool Tfalse))] @?= [SimplyExtTerm Tfalse]
+  , testCase "|- iseven 3 -> false" $ rights [eval (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc (Tsucc Tzero)))))] @?= [SimplyExtTerm Tfalse]
+  , testCase "|- iseven 2 -> true" $ rights [eval (SimplyExtTerm (_Tiseven `Tapp` (Tsucc (Tsucc Tzero))))] @?= [SimplyExtTerm Ttrue]
   ]
 
 test_show =

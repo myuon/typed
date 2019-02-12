@@ -1,3 +1,7 @@
 .stack-work/
 *~
-
+*.cabal
+.idea/
+out/
+typed.iml
+cabal.config

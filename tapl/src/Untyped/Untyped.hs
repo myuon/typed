@@ -12,22 +12,22 @@ pattern Tapp tx ty = T.Node "app" [tx,ty]
 
 data Binding = NameBind
 
-instance Calculus "untyped" StrTree StrTree (M.Map Var Binding) where
+instance Calculus "untyped" StrTree StrTree () where
   data Term "untyped" StrTree = UntypedTerm StrTree deriving (Eq, Show)
 
   isValue (UntypedTerm t) = go t where
     go (Tabs _) = True
     go _ = False
 
-  eval1 ctx (UntypedTerm t) = fmap UntypedTerm $ go ctx t where
-    go ctx (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t
-    go ctx (Tapp v t) | isValue (UntypedTerm v) = do
-      t' <- go ctx t
+  eval1 (UntypedTerm t) = fmap UntypedTerm $ go t where
+    go (Tapp (Tabs t) v) | isValue (UntypedTerm v) = return $ substTop v t
+    go (Tapp v t) | isValue (UntypedTerm v) = do
+      t' <- go t
       return $ Tapp v t'
-    go ctx (Tapp tx ty) = do
-      tx' <- go ctx tx
+    go (Tapp tx ty) = do
+      tx' <- go tx
       return $ Tapp tx' ty
-    go _ _ = throwM NoRuleApplies
+    go _ = throwM NoRuleApplies
 
     shift :: Int -> StrTree -> StrTree
     shift d = go 0

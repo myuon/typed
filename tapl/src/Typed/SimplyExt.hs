@@ -7,6 +7,7 @@ module Typed.SimplyExt
   , pattern Tpair, pattern Tpr1, pattern Tpr2, pattern Kpair
   , pattern Ttuple, pattern Tproj, pattern Ktuple
   , pattern Tfield, pattern Trecord, pattern Kfield, pattern Krecord, pattern Tprojf
+  , lookupKRec, lookupTRec
   , pattern Tinlas, pattern Tinras, pattern Tcase, pattern Ksum
   , pattern Ttagged, pattern Tmatch, pattern Tcasev, pattern Ktagged, pattern Kvariant
   , pattern Tfix, pattern Tletrec
@@ -29,7 +30,7 @@ pattern Kbase = T.Node "A" []
 
 pattern Kunit = T.Node "Unit" []
 pattern Tunit = T.Node "unit" []
-pattern (:.) tx ty <- (Tabs "*" Kunit ty) `Tapp` tx
+pattern (:.) tx ty <- Tabs "*" Kunit ty `Tapp` tx
 
 pattern Tas t typ = T.Node "as" [t,typ]
 
@@ -49,6 +50,22 @@ pattern Trecord lts = T.Node "record" lts
 pattern Kfield l t = T.Node "{} : {}" [Tval l,t]
 pattern Krecord lts = T.Node "record type" lts
 pattern Tprojf l t = T.Node "{}.label({})" [t,Tval l]
+
+-- record {l:=t} !! l == t
+lookupTRec :: String -> StrTree -> Maybe StrTree
+lookupTRec l (Trecord lts) = go lts where
+  go [] = Nothing
+  go (Tfield l' t' : lts')
+    | l == l' = Just t'
+    | otherwise = go lts'
+
+-- record {l : t} !! l == t
+lookupKRec :: String -> StrTree -> Maybe StrTree
+lookupKRec l (Krecord lts) = go lts where
+  go [] = Nothing
+  go (Kfield l' t' : lts')
+    | l == l' = Just t'
+    | otherwise = go lts'
 
 pattern Tinlas t typ = T.Node "inl {} as {}" [t,typ]
 pattern Tinras t typ = T.Node "inr {} as {}" [t,typ]
@@ -91,7 +108,7 @@ instance Show (Term "simply-ext" StrTree) where
     go (Trecord lts) = Text.unpack $ format (fromString $ (\y -> "{" ++ y ++ "}") $ intercalate ", " $ replicate (length lts) "{}") (fmap go lts)
     go (T.Node l xs) = Text.unpack $ format (fromString l) (fmap go xs)
 
-instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
+instance Calculus "simply-ext" StrTree StrTree (M.Map Var StrTree) where
   newtype Term "simply-ext" StrTree = SimplyExtTerm StrTree deriving (Eq)
 
   isValue (SimplyExtTerm t) = go t where
@@ -131,11 +148,9 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tt of
         Knat -> return Kbool
         _ -> throwM ExpectedANat
-    go ctx (Tvar x) = case ctx M.! x of
-      NameBind -> throwM WrongKindOfBindingForVariable
-      VarBind typ -> return typ
+    go ctx (Tvar x) = return $ ctx M.! x
     go ctx (Tabs x xt t) = do
-      let ctx' = M.insert x (VarBind xt) ctx
+      let ctx' = M.insert x xt ctx
       tt <- go ctx' t
       return $ Karr xt tt
     go ctx (Tapp tx ty) = do
@@ -154,8 +169,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         else throwM $ ExpectedType typ tt
     go ctx (Tlet x t1 t2) = do
       t1T <- go ctx t1
-      t2T <- go (M.insert x (VarBind t1T) ctx) t2
-      return t2T
+      go (M.insert x t1T ctx) t2
     go ctx (Tpair t1 t2) = Kpair <$> go ctx t1 <*> go ctx t2
     go ctx (Tpr1 t) = do
       tT <- go ctx t
@@ -168,12 +182,12 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         Kpair tT1 tT2 -> return tT2
         z -> throwM $ ExpectedType (Kpair (T.Node "_" []) (T.Node "_" [])) z
     go ctx (Ttuple ts) = do
-      tsTs <- mapM (\t -> go ctx t) ts
+      tsTs <- mapM (go ctx) ts
       return $ Ktuple tsTs
     go ctx (Tproj i t) = do
       tT <- go ctx t
       case tT of
-        Ktuple tTs -> return $ tTs !! (read i)
+        Ktuple tTs -> return $ tTs !! read i
         z -> throwM $ ExpectedType (Ktuple []) z
     go ctx (Trecord lts) = do
       tsT <- mapM (\(Tfield l t) -> Kfield l <$> go ctx t) lts
@@ -183,13 +197,13 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
       case tT of
         Krecord tTs -> return $ (\(Kfield u t) -> t) $ head $ filter (\(Kfield u t) -> l == u) tTs
         z -> throwM $ ExpectedType (Krecord [Kfield l (Tval "_")]) z
-    go ctx (Tinlas t typ) = do
+    go ctx (Tinlas t typ) =
       case typ of
         Ksum typT1 typT2 -> do
           tT <- go ctx t
           if tT == typT1 then return typ else throwM $ ExpectedType typT1 tT
         _ -> throwM $ ExpectedType (Ksum (Tval "_") (Tval "_")) typ
-    go ctx (Tinras t typ) = do
+    go ctx (Tinras t typ) =
       case typ of
         Ksum typT1 typT2 -> do
           tT <- go ctx t
@@ -198,7 +212,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Ttagged l t typ) = do
       tT <- go ctx t
       case typ of
-        Kvariant xs | (l,tT) `elem` fmap (\(Ktagged l t) -> (l,t)) xs -> return $ typ
+        Kvariant xs | (l,tT) `elem` fmap (\(Ktagged l t) -> (l,t)) xs -> return typ
         z -> throwM $ ExpectedType typ (Kvariant [Ktagged l tT])
     go ctx (Tcasev t lxt) = do
       tT <- go ctx t
@@ -206,7 +220,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         Kvariant lts | sort (fmap (\(Tmatch l _ _) -> l) lxt) == sort (fmap (\(Ktagged l _) -> l) lts) -> do
           ts <- forM lxt $ \(Tmatch li xi ti) -> do
             tTi <- lookup' li lts
-            go (M.insert xi (VarBind tTi) ctx) ti
+            go (M.insert xi tTi ctx) ti
           if length (nub ts) <= 1
             then return $ head ts
             else throwM $ CaseMatchNotHaveSameType ts
@@ -238,7 +252,7 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
     go ctx (Thead typ t) = do
       tT <- go ctx t
       case tT of
-        Klist tT' | tT' == typ -> return $ typ
+        Klist tT' | tT' == typ -> return typ
         z -> throwM $ ExpectedType (Klist typ) z
     go ctx (Ttail typ t) = do
       tT <- go ctx t
@@ -246,69 +260,69 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         Klist tT' | tT' == typ -> return $ Klist typ
         z -> throwM $ ExpectedType (Klist typ) z
 
-  eval1 ctx (SimplyExtTerm t) = fmap SimplyExtTerm $ go ctx t where
-    go ctx (Tif Ttrue t1 t2) = return t1
-    go ctx (Tif Tfalse t1 t2) = return t2
-    go ctx (Tif t1 t2 t3) = do
-      t1' <- go ctx t1
+  eval1 (SimplyExtTerm t) = fmap SimplyExtTerm $ go t where
+    go (Tif Ttrue t1 t2) = return t1
+    go (Tif Tfalse t1 t2) = return t2
+    go (Tif t1 t2 t3) = do
+      t1' <- go t1
       return $ Tif t1' t2 t3
-    go ctx (Tsucc t) = do
-      t' <- go ctx t
+    go (Tsucc t) = do
+      t' <- go t
       return $ Tsucc t'
-    go ctx (Tpred Tzero) = return Tzero
-    go ctx (Tpred (Tsucc n)) | isNat n = return n
-    go ctx (Tpred t) = do
-      t' <- go ctx t
+    go (Tpred Tzero) = return Tzero
+    go (Tpred (Tsucc n)) | isNat n = return n
+    go (Tpred t) = do
+      t' <- go t
       return $ Tpred t'
-    go ctx (Tiszero Tzero) = return Ttrue
-    go ctx (Tiszero (Tsucc n)) | isNat n = return Tfalse
-    go ctx (Tiszero t) = do
-      t' <- go ctx t
+    go (Tiszero Tzero) = return Ttrue
+    go (Tiszero (Tsucc n)) | isNat n = return Tfalse
+    go (Tiszero t) = do
+      t' <- go t
       return $ Tiszero t'
-    go ctx (Tvar x) = return $ Tvar x
-    go ctx (Tabs x xt t) = return $ Tabs x xt t
-    go ctx (Tapp (Tabs x typ11 t12) v) | isValue (SimplyExtTerm v) = return $ subst x v t12
-    go ctx (Tapp tx ty)
+    go (Tvar x) = return $ Tvar x
+    go (Tabs x xt t) = return $ Tabs x xt t
+    go (Tapp (Tabs x typ11 t12) v) | isValue (SimplyExtTerm v) = return $ subst x v t12
+    go (Tapp tx ty)
       | isValue (SimplyTerm tx) = do
-        ty' <- go ctx ty
+        ty' <- go ty
         return $ Tapp tx ty'
       | otherwise = do
-        tx' <- go ctx tx
+        tx' <- go tx
         return $ Tapp tx' ty
-    go ctx (Tas v typ)
+    go (Tas v typ)
       | isValue (SimplyExtTerm v) = return v
-      | otherwise = fmap (\t -> Tas t typ) $ go ctx v
-    go ctx (Tlet x v t)
+      | otherwise = fmap (\t -> Tas t typ) $ go v
+    go (Tlet x v t)
       | isValue (SimplyExtTerm v) = return $ subst x v t
       | otherwise = do
-        v' <- go ctx v
+        v' <- go v
         return $ Tlet x v t
-    go ctx (Tpr1 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
-    go ctx (Tpr2 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
-    go ctx (Tpr1 t) = Tpr1 <$> (go ctx t)
-    go ctx (Tpr2 t) = Tpr2 <$> (go ctx t)
-    go ctx (Tpair t1 t2)
-      | isValue (SimplyExtTerm t1) = Tpair t1 <$> go ctx t2
-      | otherwise = Tpair <$> (go ctx t1) <*> return t2
-    go ctx (Tproj i (Ttuple vs)) | all (isValue . SimplyExtTerm) vs = return $ vs !! (read i)
-    go ctx (Tproj i t) = Tproj i <$> go ctx t
-    go ctx (Ttuple vs) = do
+    go (Tpr1 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
+    go (Tpr2 (Tpair v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
+    go (Tpr1 t) = Tpr1 <$> go t
+    go (Tpr2 t) = Tpr2 <$> go t
+    go (Tpair t1 t2)
+      | isValue (SimplyExtTerm t1) = Tpair t1 <$> go t2
+      | otherwise = Tpair <$> go t1 <*> return t2
+    go (Tproj i (Ttuple vs)) | all (isValue . SimplyExtTerm) vs = return $ vs !! read i
+    go (Tproj i t) = Tproj i <$> go t
+    go (Ttuple vs) = do
       let (a,b:bs) = span (isValue . SimplyExtTerm) vs
-      b' <- go ctx b
+      b' <- go b
       return $ Ttuple $ a ++ [b'] ++ bs
-    go ctx (Tprojf l (Trecord lts))
+    go (Tprojf l (Trecord lts))
       | all (\(Tfield l t) -> isValue (SimplyExtTerm t)) lts = return $ (\(Tfield u t) -> t) $ head $ filter (\(Tfield u t) -> l == u) lts
-      | otherwise = Tprojf l <$> go ctx (Trecord lts)
-    go ctx (Trecord vs) = do
+      | otherwise = Tprojf l <$> go (Trecord lts)
+    go (Trecord vs) = do
       let (a,Tfield lb b:bs) = span (\(Tfield l v) -> isValue (SimplyExtTerm v)) vs
-      b' <- go ctx b
+      b' <- go b
       return $ Trecord $ a ++ [Tfield lb b'] ++ bs
-    go ctx (Tcase (Tinlas v vT) t1 t2) | isValue (SimplyExtTerm v) = go ctx $ t1 `Tapp` v
-    go ctx (Tcase (Tinras v vT) t1 t2) | isValue (SimplyExtTerm v) = go ctx $ t2 `Tapp` v
-    go ctx (Tcase t t1 t2) = Tcase <$> go ctx t <*> return t1 <*> return t2
-    go ctx (Tinlas v vT) = Tinlas <$> go ctx v <*> return vT
-    go ctx (Tinras v vT) = Tinras <$> go ctx v <*> return vT
-    go ctx (Tcasev (Ttagged l v typ) lxt) | isValue (SimplyExtTerm v) = do
+    go (Tcase (Tinlas v vT) t1 t2) | isValue (SimplyExtTerm v) = go $ t1 `Tapp` v
+    go (Tcase (Tinras v vT) t1 t2) | isValue (SimplyExtTerm v) = go $ t2 `Tapp` v
+    go (Tcase t t1 t2) = Tcase <$> go t <*> return t1 <*> return t2
+    go (Tinlas v vT) = Tinlas <$> go v <*> return vT
+    go (Tinras v vT) = Tinras <$> go v <*> return vT
+    go (Tcasev (Ttagged l v typ) lxt) | isValue (SimplyExtTerm v) = do
       Tmatch l x t <- lookup' l lxt
       return $ subst x v t
       where
@@ -317,21 +331,21 @@ instance Calculus "simply-ext" StrTree StrTree (M.Map Var Binding) where
         lookup' l (Tmatch l' x t : ks)
           | l == l' = return $ Tmatch l' x t
           | otherwise = lookup' l ks
-    go ctx (Tcasev t lxt) = Tcasev <$> go ctx t <*> return lxt
-    go ctx (Ttagged l t typ) = Ttagged l <$> go ctx t <*> return typ
-    go ctx (Tfix (Tabs x typ t)) = return $ subst x (Tfix (Tabs x typ t)) t
-    go ctx (Tfix t) = Tfix <$> go ctx t
-    go ctx (Tcons typ t1 t2)
-      | isValue (SimplyExtTerm t1) = Tcons typ t1 <$> go ctx t2
-      | otherwise = Tcons typ <$> go ctx t1 <*> return t2
-    go ctx (Tisnil typ (Tnil _)) = return Ttrue
-    go ctx (Tisnil typ (Tcons _ _ _)) = return Tfalse
-    go ctx (Tisnil typ t) = Tisnil typ <$> go ctx t
-    go ctx (Thead typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
-    go ctx (Thead typ t) = Thead typ <$> go ctx t
-    go ctx (Ttail typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
-    go ctx (Ttail typ t) = Ttail typ <$> go ctx t
-    go ctx _ = throwM NoRuleApplies
+    go (Tcasev t lxt) = Tcasev <$> go t <*> return lxt
+    go (Ttagged l t typ) = Ttagged l <$> go t <*> return typ
+    go (Tfix (Tabs x typ t)) = return $ subst x (Tfix (Tabs x typ t)) t
+    go (Tfix t) = Tfix <$> go t
+    go (Tcons typ t1 t2)
+      | isValue (SimplyExtTerm t1) = Tcons typ t1 <$> go t2
+      | otherwise = Tcons typ <$> go t1 <*> return t2
+    go (Tisnil typ (Tnil _)) = return Ttrue
+    go (Tisnil typ (Tcons _ _ _)) = return Tfalse
+    go (Tisnil typ t) = Tisnil typ <$> go t
+    go (Thead typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v1
+    go (Thead typ t) = Thead typ <$> go t
+    go (Ttail typ (Tcons _ v1 v2)) | isValue (SimplyExtTerm v1) && isValue (SimplyExtTerm v2) = return v2
+    go (Ttail typ t) = Ttail typ <$> go t
+    go _ = throwM NoRuleApplies
 
     subst v p = go where
       go Ttrue = Ttrue
