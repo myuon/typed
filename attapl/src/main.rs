@@ -1,10 +1,11 @@
-mod lib;
+extern crate attapl;
+
+use attapl::*;
+use attapl::simply::*;
 
 fn main() {
-    use self::lib::*;
-
     let mut ctx = Context(vec![("x".to_string(), Type::Bool), ("y".to_string(), Type::Bool)]);
-    let p = infer(&mut ctx, &Term::ApplicationT(
+    let p = Simply::infer(&mut ctx, &Term::ApplicationT(
         Box::new(Term::LambdaT(
             "z".to_string(),
             Box::new(Type::Bool),

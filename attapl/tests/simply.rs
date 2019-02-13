@@ -1,11 +1,12 @@
 extern crate attapl;
 
 use attapl::*;
+use attapl::simply::*;
 
 #[test]
 fn check_infer_lambda() {
     assert_eq!(
-        infer(
+        Simply::infer(
             &mut Context::new(),
             &Term::LambdaT(
                 "x".to_string(),
@@ -25,7 +26,7 @@ fn check_infer_lambda() {
 #[test]
 fn check_infer_context() {
     assert_eq!(
-        infer(
+        Simply::infer(
             &mut Context::from_vec(vec![
                 (
                     "f".to_string(),
