@@ -33,14 +33,14 @@ impl Type {
 }
 
 #[derive(Debug)]
-pub struct Context(pub Vec<(String,Type)>);
+pub struct Context<Type>(pub Vec<(String,Type)>);
 
-impl Context {
-    pub fn new() -> Context {
+impl Context<Type> {
+    pub fn new() -> Context<Type> {
         Context(vec![])
     }
 
-    pub fn from_vec(vec: Vec<(String,Type)>) -> Context {
+    pub fn from_vec(vec: Vec<(String,Type)>) -> Context<Type> {
         Context(vec)
     }
 
@@ -48,8 +48,20 @@ impl Context {
         self.0.iter().find(|p| p.0 == var).map(|p| p.1.clone())
     }
 
+    pub fn get_at(&self, index: usize) -> Type {
+        self.0[index].1
+    }
+
     fn cons(&mut self, var: String, typ: Type) {
         self.0.push((var,typ));
+    }
+
+    pub fn as_vec(&self) -> Vec<(String, Type)> {
+        self.0
+    }
+
+    pub fn find_var(&self, var: &str) -> Option<usize> {
+        self.0.iter().position(|&p| p.0 == var)
     }
 }
 
@@ -64,9 +76,10 @@ impl Simply {
 }
 
 impl TypeSystem<Term, Type> for Simply {
-    type Context = Context;
+    type Context = Context<Type>;
+    type Output = Type;
 
-    fn infer(context: &mut Context, term: &Term) -> Result<Type, String> {
+    fn infer(context: &mut Context<Type>, term: &Term) -> Result<Type, String> {
         use self::Term::*;
 
         match term {
