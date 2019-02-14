@@ -96,10 +96,10 @@ impl TypeSystem<Term, Type> for Linear {
                 match context.find_var(var) {
                     None => Err(format!("Not found in context: {:?} in {:?}", var, context)),
                     Some(index) => {
-                        let varType = context.get_at(index);
-                        match varType.get_qualifier() {
+                        let var_type = context.get_at(index);
+                        match var_type.get_qualifier() {
                             Qualifier::Un => {
-                                Ok((varType, Context::from_vec(context.as_vec())))
+                                Ok((var_type, Context::from_vec(context.as_vec())))
                             },
                             Qualifier::Lin => {
                                 let mut vec = context.as_vec();
@@ -107,14 +107,14 @@ impl TypeSystem<Term, Type> for Linear {
                                 vec.remove(index);
                                 vec.insert(0, head);
 
-                                Ok((varType, Context::from_vec(vec)))
+                                Ok((var_type, Context::from_vec(vec)))
                             },
                         }
                         
                     },
                 }
             },
-            BooleanT(q,b) => {
+            BooleanT(q,_) => {
                 Ok((
                     Type(q.clone(), Box::new(PreType::Bool)),
                     Context::from_vec(context.as_vec()),
@@ -186,10 +186,10 @@ impl TypeSystem<Term, Type> for Linear {
                 ))
             },
             ApplicationT(t1,t2) => {
-                let (t1type, context2) = Self::infer(context, t1)?;
+                let (t1type, mut context2) = Self::infer(context, t1)?;
                 match t1type.get_pretype() {
                     PreType::Function(t1type1, t1type2) => {
-                        let (t2type, context3) = Self::infer(context, t2)?;
+                        let (t2type, context3) = Self::infer(&mut context2, t2)?;
 
                         if *t1type1.as_ref() != t2type {
                             return Err(format!("Expected type {:?}, but got {:?}:{:?}", t1type1, t2, t2type));

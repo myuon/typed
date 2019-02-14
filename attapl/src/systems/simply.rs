@@ -21,17 +21,6 @@ pub enum Type {
     Function(Box<Type>, Box<Type>),
 }
 
-impl Type {
-    fn is_function(&self) -> bool {
-        use self::Type::*;
-
-        match self {
-            Function(_,_) => true,
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context<Type>(pub Vec<(String,Type)>);
 
@@ -89,7 +78,7 @@ impl TypeSystem<Term, Type> for Simply {
                     Some(t) => Ok(t),
                 }
             },
-            BooleanT(b) => Ok(Type::Bool),
+            BooleanT(_) => Ok(Type::Bool),
             IfT(t1,t2,t3) => {
                 let t1type = Self::infer(context, t1)?;
                 if t1type != Type::Bool {
