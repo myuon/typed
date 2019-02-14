@@ -1,6 +1,6 @@
 use crate::spec::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Boolean {
     True,
     False,
@@ -32,10 +32,10 @@ impl Type {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Context<Type>(pub Vec<(String,Type)>);
 
-impl Context<Type> {
+impl<Type: Clone> Context<Type> {
     pub fn new() -> Context<Type> {
         Context(vec![])
     }
@@ -52,7 +52,7 @@ impl Context<Type> {
         self.0[index].1
     }
 
-    fn cons(&mut self, var: String, typ: Type) {
+    pub fn cons(&mut self, var: String, typ: Type) {
         self.0.push((var,typ));
     }
 
