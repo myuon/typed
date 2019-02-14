@@ -1,5 +1,5 @@
 use crate::spec::*;
-use crate::systems::simply::{Boolean, Context};
+pub use crate::systems::simply::{Boolean, Context};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Qualifier {
@@ -39,7 +39,7 @@ pub enum PreType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Type(Qualifier, Box<PreType>);
+pub struct Type(pub Qualifier, pub Box<PreType>);
 
 impl Type {
     fn get_qualifier(&self) -> Qualifier {
