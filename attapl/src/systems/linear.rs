@@ -43,7 +43,7 @@ pub struct Type(Qualifier, Box<PreType>);
 
 impl Type {
     fn get_qualifier(&self) -> Qualifier {
-        self.0
+        self.0.clone()
     }
 
     fn get_pretype(&self) -> PreType {
@@ -52,6 +52,32 @@ impl Type {
 
     fn can_qualify(&self, q: &Qualifier) -> bool {
         self.get_qualifier().is_sub(q)
+    }
+}
+
+fn divides(this: &Context<Type>, mut other: Context<Type>) -> Result<Context<Type>, String> {
+    match other.0.pop() {
+        None => Ok(this.clone()),
+        Some((x,xtype)) => {
+            match xtype.get_qualifier() {
+                Qualifier::Lin => {
+                    let context = divides(this, other)?;
+                    if context.0.iter().any(|p| *p == (x.clone(),xtype.clone())) {
+                        return Err(format!("{:?} should not have {:?}:{:?}", context, x, xtype));
+                    }
+                    
+                    Ok(context)
+                },
+                Qualifier::Un => {
+                    let context = divides(this, other)?;
+                    if !context.0.iter().any(|p| *p == (x.clone(),xtype.clone())) {
+                        return Err(format!("{:?} should have {:?}:{:?}", context, x, xtype));
+                    }
+
+                    Ok(context)
+                },
+            }
+        },
     }
 }
 
@@ -77,7 +103,7 @@ impl TypeSystem<Term, Type> for Linear {
                             },
                             Qualifier::Lin => {
                                 let mut vec = context.as_vec();
-                                let head = vec[index];
+                                let head = vec[index].clone();
                                 vec.remove(index);
                                 vec.insert(0, head);
 
@@ -95,7 +121,7 @@ impl TypeSystem<Term, Type> for Linear {
                 ))
             },
             IfT(t1,t2,t3) => {
-                let (t1type, context2) = Self::infer(context, t1)?;
+                let (t1type, mut context2) = Self::infer(context, t1)?;
                 if t1type.get_pretype() != PreType::Bool {
                     return Err(format!("Expected type (_ Bool), but got {:?}:{:?}", t1, t1type));
                 }
@@ -109,7 +135,7 @@ impl TypeSystem<Term, Type> for Linear {
                 Ok(t2out)
             },
             PairT(q,t1,t2) => {
-                let (t1type, context2) = Self::infer(context, t1)?;
+                let (t1type, mut context2) = Self::infer(context, t1)?;
                 let (t2type, context3) = Self::infer(&mut context2, t2)?;
                 if !t1type.can_qualify(q) {
                     return Err(format!("{:?} cannot qualify {:?}", t1type, q));
@@ -124,7 +150,7 @@ impl TypeSystem<Term, Type> for Linear {
                 ))
             },
             SplitT(t1,x,y,t2) => {
-                let (t1type, context2) = Self::infer(context, t1)?;
+                let (t1type, mut context2) = Self::infer(context, t1)?;
                 let (t1type1, t1type2) = match t1type.get_pretype() {
                     PreType::Pair(t1type1, t1type2) => {
                         (t1type1,t1type2)
@@ -138,11 +164,46 @@ impl TypeSystem<Term, Type> for Linear {
                 context2.cons(y.clone(), t1type2.as_ref().clone());
 
                 let (t2type, context3) = Self::infer(&mut context2, t2)?;
+                let context4 = divides(&context3, Context::from_vec(vec![ (x.clone(), t1type1.as_ref().clone()), (y.clone(), t1type2.as_ref().clone()) ]))?;
 
                 Ok((
                     t2type,
-                    context3,
+                    context4,
                 ))
+            },
+            LambdaT(q,x,typ1,t2) => {
+                context.cons(x.clone(), typ1.as_ref().clone());
+                let (t2typ, context2) = Self::infer(context, t2)?;
+                let context3 = divides(&context2, Context::from_vec(vec![ (x.clone(), typ1.as_ref().clone()) ]))?;
+
+                if *q == Qualifier::Un && *context != context3 {
+                    return Err(format!("Expected {:?}, but got {:?}", context, context3));
+                }
+
+                Ok((
+                    Type(q.clone(), Box::new(PreType::Function( Box::new(typ1.as_ref().clone()), Box::new(t2typ) ))),
+                    context3
+                ))
+            },
+            ApplicationT(t1,t2) => {
+                let (t1type, context2) = Self::infer(context, t1)?;
+                match t1type.get_pretype() {
+                    PreType::Function(t1type1, t1type2) => {
+                        let (t2type, context3) = Self::infer(context, t2)?;
+
+                        if *t1type1.as_ref() != t2type {
+                            return Err(format!("Expected type {:?}, but got {:?}:{:?}", t1type1, t2, t2type));
+                        }
+
+                        Ok((
+                            t1type2.as_ref().clone(),
+                            context3,
+                        ))
+                    },
+                    _ => {
+                        Err(format!("Expected type (_ -> _), but got {:?}:{:?}", t1, t1type))
+                    },
+                }
             },
         }
     }

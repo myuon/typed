@@ -49,7 +49,7 @@ impl<Type: Clone> Context<Type> {
     }
 
     pub fn get_at(&self, index: usize) -> Type {
-        self.0[index].1
+        self.0[index].1.clone()
     }
 
     pub fn cons(&mut self, var: String, typ: Type) {
@@ -57,11 +57,11 @@ impl<Type: Clone> Context<Type> {
     }
 
     pub fn as_vec(&self) -> Vec<(String, Type)> {
-        self.0
+        self.0.clone()
     }
 
     pub fn find_var(&self, var: &str) -> Option<usize> {
-        self.0.iter().position(|&p| p.0 == var)
+        self.0.iter().position(|p| p.0 == var)
     }
 }
 
