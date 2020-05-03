@@ -1,5 +1,5 @@
 theory Lambda
-imports "~~/src/HOL/Nominal/Nominal"
+  imports "HOL-Nominal.Nominal"
 begin
 
 atom_decl var
@@ -346,9 +346,9 @@ proof-
     apply (simp add: subst.simps(3) [OF f4x])
     apply (rule bs_trans, rule, rule b_beta)
     proof-
-      have h: "(iter (op $ (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] = iter (op $ (Var np)) m (Var nq)"
+      have h: "(iter (($) (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] = iter (($) (Var np)) m (Var nq)"
         by (induction m, auto)
-      show "(iter (op $ (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] \<longrightarrow>\<beta>* iter (op $ (Var np)) m (Var nq)" 
+      show "(iter (($) (Var nf)) m (Var nx)[nf::=Var np]) [nx::=Var nq] \<longrightarrow>\<beta>* iter (($) (Var np)) m (Var nq)" 
         by (subst h, rule bs_refl)
     qed
   also have "... = lam [np]. lam [nq]. (lam [nf]. lam [nx]. iter (\<lambda>k. Var nf $ k) n (Var nx)) $ Var np $ (iter (\<lambda>k. Var np $ k) m (Var nq))" by simp
@@ -358,11 +358,11 @@ proof-
     apply (rule bs_abs, rule bs_abs)
     apply (rule bs_trans, rule, rule b_beta)
     proof-
-      have h: "(iter (op $ (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
+      have h: "(iter (($) (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (($) (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (($) (Var np)) n (iter (($) (Var np)) m (Var nq))"
         apply (induction n, auto)
         apply (rule bs_app2, simp)
         done
-      show "(iter (op $ (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (op $ (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (op $ (Var np)) n (iter (op $ (Var np)) m (Var nq))"
+      show "(iter (($) (Var nf)) n (Var nx)[nf::=Var np]) [nx::=iter (($) (Var np)) m (Var nq)] \<longrightarrow>\<beta>* iter (($) (Var np)) n (iter (($) (Var np)) m (Var nq))"
         by (simp add: h)
     qed
   also have "... = lam [np]. lam [nq]. (iter (\<lambda>k. Var np $ k) (n + m) (Var nq))" by (simp add: iter_join)
@@ -519,15 +519,15 @@ definition iZ where
 lemma iZ_defined: "L1defined iZ (lam [nx]. lam [nf]. lam [ny]. Var ny)"
 proof (simp add: L1defined_def iZ_def, auto, rule)
   fix n
-  have f1f: "nf \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+  have f1f: "nf \<sharp> (nx, lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx))"
     by (simp add: abs_fresh(1) fresh_atm)
-  have f1y: "ny \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+  have f1y: "ny \<sharp> (nx, lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx))"
     apply (induction n)
       apply (simp add: abs_fresh fresh_atm)
       apply (simp add: abs_fresh fresh_atm fresh_prod)
     done
   
-  have "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* (lam [nf].lam [ny].Var ny)"
+  have "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* (lam [nf].lam [ny].Var ny)"
     apply (rule, rule, rule b_beta, subst subst.simps, rule f1f, subst subst.simps, rule f1y)
     apply (subst no_subst, simp add: fresh_atm, rule bs_refl)
     done
@@ -540,19 +540,19 @@ proof (simp add: L1defined_def iZ_def, auto, rule)
       show "lam [ny].Var ny \<longrightarrow>\<beta>* lam [nx].Var nx"
         by (subst h, rule bs_refl)
     qed
-  finally show "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nx"
+  finally show "(lam [nx].lam [nf].lam [ny].Var ny) $ (lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nx"
     by simp
 qed
 
 lemma iS_defined: "L1defined iS (lam [nx]. lam [ny]. lam [nz]. Var ny $ (Var nx $ Var ny $ Var nz))"
 proof (simp add: L1defined_def iS_def, auto, rule)
   fix n
-  have f1x: "ny \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+  have f1x: "ny \<sharp> (nx, lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx))"
     apply (induction n)
       apply (simp add: abs_fresh fresh_atm)
       apply (simp add: abs_fresh fresh_atm fresh_prod)
     done
-  have f1z: "nz \<sharp> (nx, lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx))"
+  have f1z: "nz \<sharp> (nx, lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx))"
     apply (induction n)
       apply (simp add: abs_fresh fresh_atm)
       apply (simp add: abs_fresh fresh_atm fresh_prod)
@@ -560,17 +560,17 @@ proof (simp add: L1defined_def iS_def, auto, rule)
   have f2: "nx \<sharp> (nf, Var ny)"
     by (simp add: fresh_atm)
   
-  have "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ ((lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) $ Var ny $ Var nz)"
+  have "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ ((lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx)) $ Var ny $ Var nz)"
     apply (rule, rule, rule b_beta, subst subst.simps, rule f1x, rule bs_abs, subst subst.simps, rule f1z, rule bs_abs)
     apply (simp, rule bs_refl)
     done
-  also have "... \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ (iter (op $ (Var ny)) n (Var nz))"
+  also have "... \<longrightarrow>\<beta>* lam [ny].lam [nz].Var ny $ (iter (($) (Var ny)) n (Var nz))"
     apply (rule bs_abs, rule bs_abs, rule bs_app2)
     apply (rule, rule, rule b_app1, rule b_beta)
     apply (subst subst.simps, rule f2, rule, rule, rule b_beta)
     apply (induction n, auto, rule bs_app2, simp)
     done
-  also have "... = lam [nf].lam [nx].Var nf $ (iter (op $ (Var nf)) n (Var nx))"
+  also have "... = lam [nf].lam [nx].Var nf $ (iter (($) (Var nf)) n (Var nx))"
     apply (subst lambda.inject, subst alpha, rule disjI2, rule)
     apply (simp, rule, simp add: swap_simps)
     apply (subst lambda.inject, subst alpha, rule disjI2, rule)
@@ -582,7 +582,7 @@ proof (simp add: L1defined_def iS_def, auto, rule)
       apply (simp add: fresh_atm abs_fresh)
       apply (simp add: fresh_atm abs_fresh)
     done
-  finally show "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (op $ (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nf $ iter (op $ (Var nf)) n (Var nx)"
+  finally show "(lam [nx].lam [ny].lam [nz].Var ny $ (Var nx $ Var ny $ Var nz)) $ (lam [nf].lam [nx].iter (($) (Var nf)) n (Var nx)) \<longrightarrow>\<beta>* lam [nf].lam [nx].Var nf $ iter (($) (Var nf)) n (Var nx)"
     by simp
 qed
 
